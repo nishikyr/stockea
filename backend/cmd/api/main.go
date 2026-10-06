@@ -7,11 +7,13 @@ import (
 	"os"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/joho/godotenv"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 )
 
 func main() {
+	_ = godotenv.Load()
 	ctx := context.Background()
 
 	pool, err := pgxpool.New(ctx, mustEnv("DATABASE_URL"))

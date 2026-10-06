@@ -42,7 +42,7 @@ docker compose up -d
 # 3. Migraciones
 cd backend
 cp .env.example .env
-goose -dir db/migrations postgres "postgres://stockea:stockea@localhost:5432/stockea?sslmode=disable" up
+goose -dir db/migrations postgres "postgres://stockea:stockea@localhost:5433/stockea?sslmode=disable" up
 
 # 4. Dependencias, generar código y arrancar
 go mod tidy
