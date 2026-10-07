@@ -3,7 +3,6 @@ module github.com/nishikyr/stockea
 go 1.24
 
 require (
-	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/jackc/pgx/v5 v5.7.5
 	github.com/joho/godotenv v1.5.1
 	github.com/labstack/echo/v4 v4.13.4

@@ -3,89 +3,51 @@ package main
 import (
 	"context"
 	"log"
-	"net/http"
-	"os"
 
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/joho/godotenv"
 	"github.com/labstack/echo/v4"
-	"github.com/labstack/echo/v4/middleware"
-	"golang.org/x/time/rate"
+	echomw "github.com/labstack/echo/v4/middleware"
 
-	"github.com/nishikyr/stockea/internal/auth"
+	"github.com/nishikyr/stockea/internal/config"
 	"github.com/nishikyr/stockea/internal/db"
 	"github.com/nishikyr/stockea/internal/handlers"
+	"github.com/nishikyr/stockea/internal/routes"
+	"github.com/nishikyr/stockea/internal/services"
 )
 
 func main() {
-	_ = godotenv.Load()
-	ctx := context.Background()
+	cfg, err := config.Load()
+	if err != nil {
+		log.Fatal(err)
+	}
 
-	pool, err := pgxpool.New(ctx, mustEnv("DATABASE_URL"))
+	pool, err := pgxpool.New(context.Background(), cfg.DatabaseURL)
 	if err != nil {
 		log.Fatalf("no se pudo conectar a la base de datos: %v", err)
 	}
 	defer pool.Close()
 
-	tokens, err := auth.NewTokenManager(mustEnv("JWT_SECRET"))
-	if err != nil {
-		log.Fatal(err)
-	}
+	// Capa de datos → services → handlers
 	queries := db.New(pool)
-
-	authHandler := &handlers.AuthHandler{
-		Queries:      queries,
-		Tokens:       tokens,
-		SecureCookie: os.Getenv("APP_ENV") == "production",
-	}
+	authService := services.NewAuthService(queries)
+	userService := services.NewUserService(queries)
+	projectService := services.NewProjectService(queries)
 
 	e := echo.New()
-	e.Use(middleware.Logger())
-	e.Use(middleware.Recover())
+	e.HTTPErrorHandler = handlers.ErrorHandler
+	e.Use(echomw.Logger())
+	e.Use(echomw.Recover())
 	// Sin CORS: en local el frontend (Vite) redirigirá /api al backend con un proxy,
 	// y en producción se servirán desde el mismo dominio.
 
-	api := e.Group("/api")
-
-	// Healthcheck: comprueba que la API y la BD responden
-	api.GET("/health", func(c echo.Context) error {
-		if err := pool.Ping(c.Request().Context()); err != nil {
-			return c.JSON(http.StatusServiceUnavailable, map[string]string{"status": "db down"})
-		}
-		return c.JSON(http.StatusOK, map[string]string{"status": "ok"})
+	routes.Register(e, routes.Deps{
+		AuthService:    authService,
+		ProjectService: projectService,
+		Health:         &handlers.HealthHandler{DB: pool},
+		Auth:           &handlers.AuthHandler{Auth: authService, SecureCookie: cfg.Production},
+		Users:          &handlers.UserHandler{Users: userService},
+		Projects:       &handlers.ProjectHandler{Projects: projectService},
 	})
 
-	// ── Auth ──
-	// Máximo 5 intentos seguidos por IP; luego se recupera 1 intento cada 12 s
-	// (frena ataques de fuerza bruta). Burst es obligatorio: sin él, el límite
-	// de <1 petición/segundo bloquearía todos los logins.
-	loginLimiter := middleware.RateLimiter(middleware.NewRateLimiterMemoryStoreWithConfig(
-		middleware.RateLimiterMemoryStoreConfig{Rate: rate.Limit(5.0 / 60), Burst: 5},
-	))
-	api.POST("/auth/login", authHandler.Login, loginLimiter)
-	api.POST("/auth/logout", authHandler.Logout)
-
-	// ── Rutas protegidas: todo lo que va aquí exige sesión ──
-	protected := api.Group("", auth.RequireAuth(tokens))
-	protected.GET("/auth/me", authHandler.Me)
-
-	// Ejemplos de cómo se protegerán las rutas de proyectos (siguiente paso):
-	//   admin := protected.Group("/admin", auth.RequireAdmin)
-	//   project := protected.Group("/projects/:projectID")
-	//   project.GET("/products", h.ListProducts, auth.RequireProjectRole(queries, db.ProjectRoleViewer))
-	//   project.POST("/products", h.CreateProduct, auth.RequireProjectRole(queries, db.ProjectRoleEditor))
-
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "8080"
-	}
-	e.Logger.Fatal(e.Start(":" + port))
-}
-
-func mustEnv(key string) string {
-	v := os.Getenv(key)
-	if v == "" {
-		log.Fatalf("falta la variable de entorno %s", key)
-	}
-	return v
+	e.Logger.Fatal(e.Start(":" + cfg.Port))
 }

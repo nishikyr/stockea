@@ -43,24 +43,6 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 	return i, err
 }
 
-const getProjectRole = `-- name: GetProjectRole :one
-SELECT role FROM project_members
-WHERE project_id = $1 AND user_id = $2
-`
-
-type GetProjectRoleParams struct {
-	ProjectID pgtype.UUID `json:"project_id"`
-	UserID    pgtype.UUID `json:"user_id"`
-}
-
-// Rol de un usuario dentro de un proyecto (si no es miembro, no devuelve filas)
-func (q *Queries) GetProjectRole(ctx context.Context, arg GetProjectRoleParams) (ProjectRole, error) {
-	row := q.db.QueryRow(ctx, getProjectRole, arg.ProjectID, arg.UserID)
-	var role ProjectRole
-	err := row.Scan(&role)
-	return role, err
-}
-
 const getUserByEmail = `-- name: GetUserByEmail :one
 SELECT id, email, password_hash, name, is_admin, created_at FROM users WHERE email = lower($1)
 `
@@ -95,4 +77,35 @@ func (q *Queries) GetUserByID(ctx context.Context, id pgtype.UUID) (User, error)
 		&i.CreatedAt,
 	)
 	return i, err
+}
+
+const listUsers = `-- name: ListUsers :many
+SELECT id, email, password_hash, name, is_admin, created_at FROM users ORDER BY name
+`
+
+func (q *Queries) ListUsers(ctx context.Context) ([]User, error) {
+	rows, err := q.db.Query(ctx, listUsers)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []User
+	for rows.Next() {
+		var i User
+		if err := rows.Scan(
+			&i.ID,
+			&i.Email,
+			&i.PasswordHash,
+			&i.Name,
+			&i.IsAdmin,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }

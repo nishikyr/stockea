@@ -15,15 +15,13 @@ import (
 	"strings"
 
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/joho/godotenv"
 
-	"github.com/nishikyr/stockea/internal/auth"
+	"github.com/nishikyr/stockea/internal/config"
 	"github.com/nishikyr/stockea/internal/db"
+	"github.com/nishikyr/stockea/internal/services"
 )
 
 func main() {
-	_ = godotenv.Load()
-
 	email := flag.String("email", "", "email del administrador")
 	name := flag.String("name", "", "nombre visible")
 	flag.Parse()
@@ -31,30 +29,27 @@ func main() {
 		log.Fatal("uso: go run ./cmd/createadmin -email tu@email.com -name TuNombre")
 	}
 
-	fmt.Print("Contraseña (mínimo 10 caracteres): ")
-	password, _ := bufio.NewReader(os.Stdin).ReadString('\n')
-	password = strings.TrimSpace(password)
-	if len(password) < 10 {
-		log.Fatal("la contraseña debe tener al menos 10 caracteres")
-	}
-
-	hash, err := auth.HashPassword(password)
+	cfg, err := config.Load()
 	if err != nil {
 		log.Fatal(err)
 	}
 
+	fmt.Print("Contraseña (mínimo 10 caracteres): ")
+	password, _ := bufio.NewReader(os.Stdin).ReadString('\n')
+	password = strings.TrimSpace(password)
+
 	ctx := context.Background()
-	pool, err := pgxpool.New(ctx, os.Getenv("DATABASE_URL"))
+	pool, err := pgxpool.New(ctx, cfg.DatabaseURL)
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer pool.Close()
 
-	user, err := db.New(pool).CreateUser(ctx, db.CreateUserParams{
-		Email:        *email,
-		PasswordHash: hash,
-		Name:         *name,
-		IsAdmin:      true,
+	user, err := services.NewUserService(db.New(pool)).Create(ctx, services.CreateUserInput{
+		Email:    *email,
+		Name:     *name,
+		Password: password,
+		IsAdmin:  true,
 	})
 	if err != nil {
 		log.Fatalf("no se pudo crear el usuario: %v", err)
