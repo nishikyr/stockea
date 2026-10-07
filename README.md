@@ -51,9 +51,25 @@ export $(cat .env | xargs) && go run ./cmd/api
 # → http://localhost:8080/api/health
 ```
 
+## Crear el usuario administrador
+```bash
+cd backend
+go run ./cmd/createadmin -email tu@email.com -name TuNombre
+# te pedirá la contraseña (mínimo 10 caracteres)
+```
+
+## API de autenticación
+| Método | Ruta | Qué hace |
+|---|---|---|
+| POST | `/api/auth/login` | `{email, password}` → cookie de sesión `stockea_session` (HttpOnly, 7 días) |
+| POST | `/api/auth/logout` | borra la cookie |
+| GET | `/api/auth/me` | datos del usuario logueado (requiere sesión) |
+
+El login está limitado a 5 intentos seguidos por IP.
+
 ## Próximos pasos
-1. Auth: login con email/contraseña (bcrypt) + JWT en cookie httpOnly
-2. Middleware de permisos por proyecto (admin / editor / viewer)
+1. ~~Auth: login con email/contraseña (bcrypt) + JWT en cookie httpOnly~~ ✔
+2. ~~Middleware de permisos por proyecto (admin / editor / viewer)~~ ✔
 3. Endpoints CRUD de productos, categorías y movimientos
 4. Frontend React
 5. Fotos (R2/S3)
