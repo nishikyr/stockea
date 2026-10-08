@@ -2,6 +2,7 @@ package services
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/jackc/pgx/v5/pgconn"
 )
@@ -39,7 +40,20 @@ var (
 	ErrEmailAlreadyExists = &Error{KindConflict, "ya existe un usuario con ese email"}
 	ErrInvalidID          = validation("id no válido")
 	ErrInvalidRequest     = validation("petición no válida")
+
+	// Inventario
+	ErrCategoryNotFound  = &Error{KindNotFound, "categoría no encontrada"}
+	ErrLocationNotFound  = &Error{KindNotFound, "ubicación no encontrada"}
+	ErrProductNotFound   = &Error{KindNotFound, "producto no encontrado"}
+	ErrCategoryNameTaken = &Error{KindConflict, "ya existe una categoría con ese nombre"}
+	ErrLocationCycle     = validation("una ubicación no puede estar dentro de sí misma ni de una de sus sububicaciones")
+	ErrNothingToAdjust   = validation("la cantidad contada es igual al stock actual: no hay nada que ajustar")
 )
+
+// insufficientStock: el mensaje incluye cuánto queda, para que el usuario sepa qué pasa.
+func insufficientStock(available int32, unit string) *Error {
+	return &Error{KindConflict, fmt.Sprintf("no hay suficiente stock (quedan %d %s)", available, unit)}
+}
 
 // isUniqueViolation detecta el error de Postgres por clave duplicada (código 23505).
 func isUniqueViolation(err error) bool {

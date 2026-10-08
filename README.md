@@ -107,11 +107,38 @@ Todas las respuestas son JSON. Los errores tienen la forma `{"message": "..."}`.
 
 Si no eres miembro de un proyecto, la API responde 404 (no 403) para no revelar que existe.
 
+### Inventario
+Todas cuelgan de `/api/projects/:projectID`. **Leer**: cualquier miembro. **Modificar**: editor o admin.
+
+| Método | Ruta | Qué hace |
+|---|---|---|
+| GET | `/categories` | categorías con nº de productos |
+| POST / PUT / DELETE | `/categories[/:categoryID]` | `{name, color: "#rrggbb", icon}`. Al borrar, sus productos quedan sin categoría |
+| GET | `/locations` | ubicaciones (lista plana con `parent_id`; el frontend monta el árbol) |
+| POST / PUT / DELETE | `/locations[/:locationID]` | `{name, description, parent_id}`. Impide ciclos (una caja dentro de sí misma) |
+| GET | `/products?category_id=&location_id=&q=&low_stock=true` | listado con filtros opcionales |
+| GET | `/products/:productID` | detalle |
+| POST | `/products` | `{name, description, category_id, location_id, unit, min_quantity, quantity}`; `quantity` = stock inicial |
+| PUT | `/products/:productID` | edita los datos; **la cantidad no** (solo cambia con movimientos) |
+| DELETE | `/products/:productID` | borra el producto y su historial |
+| POST | `/products/:productID/movements` | `{type, quantity, reason}` → ver tabla de abajo |
+| GET | `/movements?product_id=&type=out&limit=50&offset=0` | historial, lo más reciente primero |
+
+| `type` | `quantity` significa | Ejemplo |
+|---|---|---|
+| `in` | unidades que entran | compras 4 bombillas → `{type:"in", quantity:4}` |
+| `out` | unidades que salen | te llevas 2 → `{type:"out", quantity:2}` (falla con 409 si no hay suficientes) |
+| `adjust` | cuántas hay de verdad tras contarlas | cuentas 6 → `{type:"adjust", quantity:6}`; se guarda la diferencia |
+
+Cada movimiento actualiza el stock y se guarda en el historial **en la misma transacción**, con la fila
+del producto bloqueada (`FOR UPDATE`): aunque dos personas registren salidas a la vez, el stock nunca
+queda negativo ni descuadrado. Cada movimiento devuelve el `delta` (+4, -2...) y el stock resultante.
+
 ## Próximos pasos
 1. ~~Login con sesiones en servidor y cookie HttpOnly~~ ✔
 2. ~~Permisos por proyecto (admin / editor / viewer)~~ ✔
 3. ~~Usuarios, proyectos y miembros~~ ✔
-4. Categorías, ubicaciones, productos y movimientos
+4. ~~Categorías, ubicaciones, productos y movimientos~~ ✔
 5. Frontend React
 6. Fotos (R2/S3)
 7. Deploy (Fly.io / Railway) + GitHub Actions

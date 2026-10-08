@@ -32,6 +32,10 @@ func main() {
 	authService := services.NewAuthService(queries)
 	userService := services.NewUserService(queries)
 	projectService := services.NewProjectService(queries)
+	categoryService := services.NewCategoryService(queries)
+	locationService := services.NewLocationService(queries)
+	productService := services.NewProductService(pool, queries)
+	movementService := services.NewMovementService(pool, queries)
 
 	e := echo.New()
 	e.HTTPErrorHandler = handlers.ErrorHandler
@@ -47,6 +51,10 @@ func main() {
 		Auth:           &handlers.AuthHandler{Auth: authService, SecureCookie: cfg.Production},
 		Users:          &handlers.UserHandler{Users: userService},
 		Projects:       &handlers.ProjectHandler{Projects: projectService},
+		Categories:     &handlers.CategoryHandler{Categories: categoryService},
+		Locations:      &handlers.LocationHandler{Locations: locationService},
+		Products:       &handlers.ProductHandler{Products: productService},
+		Movements:      &handlers.MovementHandler{Movements: movementService},
 	})
 
 	e.Logger.Fatal(e.Start(":" + cfg.Port))

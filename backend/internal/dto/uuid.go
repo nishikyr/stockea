@@ -15,3 +15,20 @@ func ParseUUID(s string) (pgtype.UUID, error) {
 	err := u.Scan(s)
 	return u, err
 }
+
+// ParseOptionalUUID: "" o nil significan "ninguno" (UUID nulo, Valid=false).
+func ParseOptionalUUID(s *string) (pgtype.UUID, error) {
+	if s == nil || *s == "" {
+		return pgtype.UUID{}, nil
+	}
+	return ParseUUID(*s)
+}
+
+// UUIDPtr devuelve nil si el UUID es nulo, para que en el JSON salga null.
+func UUIDPtr(u pgtype.UUID) *string {
+	if !u.Valid {
+		return nil
+	}
+	s := UUIDString(u)
+	return &s
+}

@@ -14,17 +14,23 @@ import (
 type Deps struct {
 	AuthService    *services.AuthService
 	ProjectService *services.ProjectService
-
-	Health   *handlers.HealthHandler
-	Auth     *handlers.AuthHandler
-	Users    *handlers.UserHandler
-	Projects *handlers.ProjectHandler
+	Health     *handlers.HealthHandler
+	Auth       *handlers.AuthHandler
+	Users      *handlers.UserHandler
+	Projects   *handlers.ProjectHandler
+	Categories *handlers.CategoryHandler
+	Locations  *handlers.LocationHandler
+	Products   *handlers.ProductHandler
+	Movements  *handlers.MovementHandler
 }
 
 func Register(e *echo.Echo, d Deps) {
 	requireAuth := mw.RequireAuth(d.AuthService)
-	viewer := mw.RequireProjectRole(d.ProjectService, services.RoleViewer)
-	admin := mw.RequireProjectRole(d.ProjectService, services.RoleAdmin)
+
+	// Permisos dentro de un proyecto
+	viewer := mw.RequireProjectRole(d.ProjectService, services.RoleViewer) // leer
+	editor := mw.RequireProjectRole(d.ProjectService, services.RoleEditor) // modificar inventario
+	admin := mw.RequireProjectRole(d.ProjectService, services.RoleAdmin)   // gestionar miembros
 
 	// Máximo 5 intentos de login seguidos por IP; luego 1 intento cada 12 s.
 	// Burst es obligatorio: sin él, un límite de <1 petición/s bloquearía todos los logins.
@@ -59,6 +65,26 @@ func Register(e *echo.Echo, d Deps) {
 	members.PUT("", d.Projects.SetMember)
 	members.DELETE("/:userID", d.Projects.RemoveMember)
 
-	// Siguiente paso: categorías, productos y movimientos colgando de `project`
-	// (lectura con `viewer`, escritura con un middleware de rol "editor").
+	// ── Inventario: leer = cualquier miembro, modificar = editor o admin ──
+	categories := project.Group("/categories")
+	categories.GET("", d.Categories.List, viewer)
+	categories.POST("", d.Categories.Create, editor)
+	categories.PUT("/:categoryID", d.Categories.Update, editor)
+	categories.DELETE("/:categoryID", d.Categories.Delete, editor)
+
+	locations := project.Group("/locations")
+	locations.GET("", d.Locations.List, viewer)
+	locations.POST("", d.Locations.Create, editor)
+	locations.PUT("/:locationID", d.Locations.Update, editor)
+	locations.DELETE("/:locationID", d.Locations.Delete, editor)
+
+	products := project.Group("/products")
+	products.GET("", d.Products.List, viewer)
+	products.POST("", d.Products.Create, editor)
+	products.GET("/:productID", d.Products.Get, viewer)
+	products.PUT("/:productID", d.Products.Update, editor)
+	products.DELETE("/:productID", d.Products.Delete, editor)
+	products.POST("/:productID/movements", d.Movements.Register, editor)
+
+	project.GET("/movements", d.Movements.List, viewer)
 }

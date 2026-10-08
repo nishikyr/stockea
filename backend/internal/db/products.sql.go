@@ -11,73 +11,6 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const applyStockDelta = `-- name: ApplyStockDelta :one
-UPDATE products
-SET quantity = quantity + $1, updated_at = now()
-WHERE id = $2
-RETURNING id, project_id, category_id, location_id, name, description, quantity, unit, min_quantity, created_at, updated_at
-`
-
-type ApplyStockDeltaParams struct {
-	Delta int32       `json:"delta"`
-	ID    pgtype.UUID `json:"id"`
-}
-
-// Cambiar stock: estas dos consultas se ejecutan SIEMPRE juntas en una transacción
-func (q *Queries) ApplyStockDelta(ctx context.Context, arg ApplyStockDeltaParams) (Product, error) {
-	row := q.db.QueryRow(ctx, applyStockDelta, arg.Delta, arg.ID)
-	var i Product
-	err := row.Scan(
-		&i.ID,
-		&i.ProjectID,
-		&i.CategoryID,
-		&i.LocationID,
-		&i.Name,
-		&i.Description,
-		&i.Quantity,
-		&i.Unit,
-		&i.MinQuantity,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
-}
-
-const createMovement = `-- name: CreateMovement :one
-INSERT INTO movements (product_id, user_id, type, quantity, reason)
-VALUES ($1, $2, $3, $4, $5)
-RETURNING id, product_id, user_id, type, quantity, reason, created_at
-`
-
-type CreateMovementParams struct {
-	ProductID pgtype.UUID  `json:"product_id"`
-	UserID    pgtype.UUID  `json:"user_id"`
-	Type      MovementType `json:"type"`
-	Quantity  int32        `json:"quantity"`
-	Reason    pgtype.Text  `json:"reason"`
-}
-
-func (q *Queries) CreateMovement(ctx context.Context, arg CreateMovementParams) (Movement, error) {
-	row := q.db.QueryRow(ctx, createMovement,
-		arg.ProductID,
-		arg.UserID,
-		arg.Type,
-		arg.Quantity,
-		arg.Reason,
-	)
-	var i Movement
-	err := row.Scan(
-		&i.ID,
-		&i.ProductID,
-		&i.UserID,
-		&i.Type,
-		&i.Quantity,
-		&i.Reason,
-		&i.CreatedAt,
-	)
-	return i, err
-}
-
 const createProduct = `-- name: CreateProduct :one
 INSERT INTO products (project_id, category_id, location_id, name, description, unit, min_quantity)
 VALUES ($1, $2, $3, $4, $5, $6, $7)
@@ -121,12 +54,95 @@ func (q *Queries) CreateProduct(ctx context.Context, arg CreateProductParams) (P
 	return i, err
 }
 
-const getProduct = `-- name: GetProduct :one
-SELECT id, project_id, category_id, location_id, name, description, quantity, unit, min_quantity, created_at, updated_at FROM products WHERE id = $1
+const deleteProduct = `-- name: DeleteProduct :execrows
+DELETE FROM products WHERE project_id = $1 AND id = $2
 `
 
-func (q *Queries) GetProduct(ctx context.Context, id pgtype.UUID) (Product, error) {
-	row := q.db.QueryRow(ctx, getProduct, id)
+type DeleteProductParams struct {
+	ProjectID pgtype.UUID `json:"project_id"`
+	ID        pgtype.UUID `json:"id"`
+}
+
+// Borra también sus movimientos y fotos (ON DELETE CASCADE)
+func (q *Queries) DeleteProduct(ctx context.Context, arg DeleteProductParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteProduct, arg.ProjectID, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const getProductDetail = `-- name: GetProductDetail :one
+SELECT p.id, p.project_id, p.category_id, p.location_id, p.name, p.description, p.quantity, p.unit, p.min_quantity, p.created_at, p.updated_at,
+       c.name  AS category_name,
+       c.color AS category_color,
+       c.icon  AS category_icon,
+       l.name  AS location_name
+FROM products p
+LEFT JOIN categories c ON c.id = p.category_id
+LEFT JOIN locations  l ON l.id = p.location_id
+WHERE p.project_id = $1 AND p.id = $2
+`
+
+type GetProductDetailParams struct {
+	ProjectID pgtype.UUID `json:"project_id"`
+	ID        pgtype.UUID `json:"id"`
+}
+
+type GetProductDetailRow struct {
+	ID            pgtype.UUID        `json:"id"`
+	ProjectID     pgtype.UUID        `json:"project_id"`
+	CategoryID    pgtype.UUID        `json:"category_id"`
+	LocationID    pgtype.UUID        `json:"location_id"`
+	Name          string             `json:"name"`
+	Description   pgtype.Text        `json:"description"`
+	Quantity      int32              `json:"quantity"`
+	Unit          string             `json:"unit"`
+	MinQuantity   int32              `json:"min_quantity"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`
+	CategoryName  pgtype.Text        `json:"category_name"`
+	CategoryColor pgtype.Text        `json:"category_color"`
+	CategoryIcon  pgtype.Text        `json:"category_icon"`
+	LocationName  pgtype.Text        `json:"location_name"`
+}
+
+func (q *Queries) GetProductDetail(ctx context.Context, arg GetProductDetailParams) (GetProductDetailRow, error) {
+	row := q.db.QueryRow(ctx, getProductDetail, arg.ProjectID, arg.ID)
+	var i GetProductDetailRow
+	err := row.Scan(
+		&i.ID,
+		&i.ProjectID,
+		&i.CategoryID,
+		&i.LocationID,
+		&i.Name,
+		&i.Description,
+		&i.Quantity,
+		&i.Unit,
+		&i.MinQuantity,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.CategoryName,
+		&i.CategoryColor,
+		&i.CategoryIcon,
+		&i.LocationName,
+	)
+	return i, err
+}
+
+const getProductForUpdate = `-- name: GetProductForUpdate :one
+SELECT id, project_id, category_id, location_id, name, description, quantity, unit, min_quantity, created_at, updated_at FROM products WHERE project_id = $1 AND id = $2 FOR UPDATE
+`
+
+type GetProductForUpdateParams struct {
+	ProjectID pgtype.UUID `json:"project_id"`
+	ID        pgtype.UUID `json:"id"`
+}
+
+// Bloquea la fila hasta que termine la transacción: si dos personas registran
+// una salida a la vez, la segunda espera y ve el stock ya actualizado.
+func (q *Queries) GetProductForUpdate(ctx context.Context, arg GetProductForUpdateParams) (Product, error) {
+	row := q.db.QueryRow(ctx, getProductForUpdate, arg.ProjectID, arg.ID)
 	var i Product
 	err := row.Scan(
 		&i.ID,
@@ -144,125 +160,58 @@ func (q *Queries) GetProduct(ctx context.Context, id pgtype.UUID) (Product, erro
 	return i, err
 }
 
-const listLowStock = `-- name: ListLowStock :many
-SELECT id, project_id, category_id, location_id, name, description, quantity, unit, min_quantity, created_at, updated_at FROM products
-WHERE project_id = $1 AND quantity <= min_quantity
-ORDER BY name
-`
-
-func (q *Queries) ListLowStock(ctx context.Context, projectID pgtype.UUID) ([]Product, error) {
-	rows, err := q.db.Query(ctx, listLowStock, projectID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []Product
-	for rows.Next() {
-		var i Product
-		if err := rows.Scan(
-			&i.ID,
-			&i.ProjectID,
-			&i.CategoryID,
-			&i.LocationID,
-			&i.Name,
-			&i.Description,
-			&i.Quantity,
-			&i.Unit,
-			&i.MinQuantity,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listMovements = `-- name: ListMovements :many
-SELECT m.id, m.product_id, m.user_id, m.type, m.quantity, m.reason, m.created_at, u.name AS user_name
-FROM movements m
-JOIN users u ON u.id = m.user_id
-WHERE m.product_id = $1
-ORDER BY m.created_at DESC
-LIMIT $2
-`
-
-type ListMovementsParams struct {
-	ProductID pgtype.UUID `json:"product_id"`
-	Limit     int32       `json:"limit"`
-}
-
-type ListMovementsRow struct {
-	ID        pgtype.UUID        `json:"id"`
-	ProductID pgtype.UUID        `json:"product_id"`
-	UserID    pgtype.UUID        `json:"user_id"`
-	Type      MovementType       `json:"type"`
-	Quantity  int32              `json:"quantity"`
-	Reason    pgtype.Text        `json:"reason"`
-	CreatedAt pgtype.Timestamptz `json:"created_at"`
-	UserName  string             `json:"user_name"`
-}
-
-func (q *Queries) ListMovements(ctx context.Context, arg ListMovementsParams) ([]ListMovementsRow, error) {
-	rows, err := q.db.Query(ctx, listMovements, arg.ProductID, arg.Limit)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []ListMovementsRow
-	for rows.Next() {
-		var i ListMovementsRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.ProductID,
-			&i.UserID,
-			&i.Type,
-			&i.Quantity,
-			&i.Reason,
-			&i.CreatedAt,
-			&i.UserName,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const listProducts = `-- name: ListProducts :many
-SELECT p.id, p.project_id, p.category_id, p.location_id, p.name, p.description, p.quantity, p.unit, p.min_quantity, p.created_at, p.updated_at, c.name AS category_name, l.name AS location_name
+SELECT p.id, p.project_id, p.category_id, p.location_id, p.name, p.description, p.quantity, p.unit, p.min_quantity, p.created_at, p.updated_at,
+       c.name  AS category_name,
+       c.color AS category_color,
+       c.icon  AS category_icon,
+       l.name  AS location_name
 FROM products p
 LEFT JOIN categories c ON c.id = p.category_id
 LEFT JOIN locations  l ON l.id = p.location_id
 WHERE p.project_id = $1
+  AND ($2::uuid IS NULL OR p.category_id = $2)
+  AND ($3::uuid IS NULL OR p.location_id = $3)
+  AND ($4::text IS NULL OR p.name ILIKE '%' || $4 || '%')
+  AND (NOT $5::bool OR p.quantity <= p.min_quantity)
 ORDER BY p.name
 `
 
-type ListProductsRow struct {
-	ID           pgtype.UUID        `json:"id"`
-	ProjectID    pgtype.UUID        `json:"project_id"`
-	CategoryID   pgtype.UUID        `json:"category_id"`
-	LocationID   pgtype.UUID        `json:"location_id"`
-	Name         string             `json:"name"`
-	Description  pgtype.Text        `json:"description"`
-	Quantity     int32              `json:"quantity"`
-	Unit         string             `json:"unit"`
-	MinQuantity  int32              `json:"min_quantity"`
-	CreatedAt    pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
-	CategoryName pgtype.Text        `json:"category_name"`
-	LocationName pgtype.Text        `json:"location_name"`
+type ListProductsParams struct {
+	ProjectID    pgtype.UUID `json:"project_id"`
+	CategoryID   pgtype.UUID `json:"category_id"`
+	LocationID   pgtype.UUID `json:"location_id"`
+	Search       pgtype.Text `json:"search"`
+	LowStockOnly bool        `json:"low_stock_only"`
 }
 
-func (q *Queries) ListProducts(ctx context.Context, projectID pgtype.UUID) ([]ListProductsRow, error) {
-	rows, err := q.db.Query(ctx, listProducts, projectID)
+type ListProductsRow struct {
+	ID            pgtype.UUID        `json:"id"`
+	ProjectID     pgtype.UUID        `json:"project_id"`
+	CategoryID    pgtype.UUID        `json:"category_id"`
+	LocationID    pgtype.UUID        `json:"location_id"`
+	Name          string             `json:"name"`
+	Description   pgtype.Text        `json:"description"`
+	Quantity      int32              `json:"quantity"`
+	Unit          string             `json:"unit"`
+	MinQuantity   int32              `json:"min_quantity"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`
+	CategoryName  pgtype.Text        `json:"category_name"`
+	CategoryColor pgtype.Text        `json:"category_color"`
+	CategoryIcon  pgtype.Text        `json:"category_icon"`
+	LocationName  pgtype.Text        `json:"location_name"`
+}
+
+// Listado con filtros opcionales: cada filtro se ignora si llega NULL.
+func (q *Queries) ListProducts(ctx context.Context, arg ListProductsParams) ([]ListProductsRow, error) {
+	rows, err := q.db.Query(ctx, listProducts,
+		arg.ProjectID,
+		arg.CategoryID,
+		arg.LocationID,
+		arg.Search,
+		arg.LowStockOnly,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -283,6 +232,8 @@ func (q *Queries) ListProducts(ctx context.Context, projectID pgtype.UUID) ([]Li
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.CategoryName,
+			&i.CategoryColor,
+			&i.CategoryIcon,
 			&i.LocationName,
 		); err != nil {
 			return nil, err
@@ -293,4 +244,66 @@ func (q *Queries) ListProducts(ctx context.Context, projectID pgtype.UUID) ([]Li
 		return nil, err
 	}
 	return items, nil
+}
+
+const setProductQuantity = `-- name: SetProductQuantity :exec
+UPDATE products SET quantity = $2, updated_at = now() WHERE id = $1
+`
+
+type SetProductQuantityParams struct {
+	ID       pgtype.UUID `json:"id"`
+	Quantity int32       `json:"quantity"`
+}
+
+func (q *Queries) SetProductQuantity(ctx context.Context, arg SetProductQuantityParams) error {
+	_, err := q.db.Exec(ctx, setProductQuantity, arg.ID, arg.Quantity)
+	return err
+}
+
+const updateProduct = `-- name: UpdateProduct :one
+UPDATE products
+SET category_id = $3, location_id = $4, name = $5, description = $6,
+    unit = $7, min_quantity = $8, updated_at = now()
+WHERE project_id = $1 AND id = $2
+RETURNING id, project_id, category_id, location_id, name, description, quantity, unit, min_quantity, created_at, updated_at
+`
+
+type UpdateProductParams struct {
+	ProjectID   pgtype.UUID `json:"project_id"`
+	ID          pgtype.UUID `json:"id"`
+	CategoryID  pgtype.UUID `json:"category_id"`
+	LocationID  pgtype.UUID `json:"location_id"`
+	Name        string      `json:"name"`
+	Description pgtype.Text `json:"description"`
+	Unit        string      `json:"unit"`
+	MinQuantity int32       `json:"min_quantity"`
+}
+
+// Edita los datos del producto. La cantidad NO se toca aquí: solo cambia con movimientos.
+func (q *Queries) UpdateProduct(ctx context.Context, arg UpdateProductParams) (Product, error) {
+	row := q.db.QueryRow(ctx, updateProduct,
+		arg.ProjectID,
+		arg.ID,
+		arg.CategoryID,
+		arg.LocationID,
+		arg.Name,
+		arg.Description,
+		arg.Unit,
+		arg.MinQuantity,
+	)
+	var i Product
+	err := row.Scan(
+		&i.ID,
+		&i.ProjectID,
+		&i.CategoryID,
+		&i.LocationID,
+		&i.Name,
+		&i.Description,
+		&i.Quantity,
+		&i.Unit,
+		&i.MinQuantity,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
 }
