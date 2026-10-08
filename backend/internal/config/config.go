@@ -11,7 +11,8 @@ import (
 type Config struct {
 	DatabaseURL string
 	Port        string
-	Production  bool // APP_ENV=production → cookies solo por HTTPS
+	Production  bool   // APP_ENV=production → cookies solo por HTTPS
+	UploadDir   string // carpeta donde se guardan las fotos
 }
 
 func Load() (Config, error) {
@@ -21,6 +22,10 @@ func Load() (Config, error) {
 		DatabaseURL: os.Getenv("DATABASE_URL"),
 		Port:        os.Getenv("PORT"),
 		Production:  os.Getenv("APP_ENV") == "production",
+		UploadDir:   os.Getenv("UPLOAD_DIR"),
+	}
+	if cfg.UploadDir == "" {
+		cfg.UploadDir = "./uploads"
 	}
 	if cfg.DatabaseURL == "" {
 		return cfg, errors.New("falta la variable de entorno DATABASE_URL")

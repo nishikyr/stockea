@@ -42,3 +42,19 @@ func (h *UserHandler) Create(c echo.Context) error {
 	}
 	return c.JSON(http.StatusCreated, dto.NewUserResponse(user))
 }
+
+// PUT /api/users/:userID/password — (admin) pone una contraseña nueva y cierra sus sesiones
+func (h *UserHandler) ResetPassword(c echo.Context) error {
+	userID, err := pathUUID(c, "userID", services.ErrUserIDNotFound)
+	if err != nil {
+		return err
+	}
+	var req dto.ResetPasswordRequest
+	if err := c.Bind(&req); err != nil {
+		return services.ErrInvalidRequest
+	}
+	if err := h.Users.ResetPassword(c.Request().Context(), userID, req.NewPassword); err != nil {
+		return err
+	}
+	return c.NoContent(http.StatusNoContent)
+}

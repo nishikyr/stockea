@@ -14,6 +14,7 @@ import (
 
 type AuthHandler struct {
 	Auth         *services.AuthService
+	Users        *services.UserService
 	SecureCookie bool // true en producción (cookie solo por HTTPS)
 }
 
@@ -45,6 +46,23 @@ func (h *AuthHandler) Logout(c echo.Context) error {
 // GET /api/auth/me — quién soy (el frontend lo usará al cargar la página)
 func (h *AuthHandler) Me(c echo.Context) error {
 	return c.JSON(http.StatusOK, dto.NewUserResponse(middleware.CurrentUser(c)))
+}
+
+// PUT /api/auth/password — cambiar mi contraseña (cierra mis otras sesiones)
+func (h *AuthHandler) ChangePassword(c echo.Context) error {
+	var req dto.ChangePasswordRequest
+	if err := c.Bind(&req); err != nil {
+		return services.ErrInvalidRequest
+	}
+	cookie, err := c.Cookie(auth.CookieName)
+	if err != nil {
+		return services.ErrNotLoggedIn
+	}
+	err = h.Users.ChangeOwnPassword(c.Request().Context(), middleware.CurrentUser(c), cookie.Value, req.CurrentPassword, req.NewPassword)
+	if err != nil {
+		return err
+	}
+	return c.NoContent(http.StatusNoContent)
 }
 
 func (h *AuthHandler) sessionCookie(value string, expires time.Time) *http.Cookie {

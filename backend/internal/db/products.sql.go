@@ -77,7 +77,11 @@ SELECT p.id, p.project_id, p.category_id, p.location_id, p.name, p.description, 
        c.name  AS category_name,
        c.color AS category_color,
        c.icon  AS category_icon,
-       l.name  AS location_name
+       l.name  AS location_name,
+       (SELECT ph.id FROM product_photos ph
+        WHERE ph.product_id = p.id
+        ORDER BY ph.position, ph.created_at
+        LIMIT 1)::uuid AS cover_photo_id
 FROM products p
 LEFT JOIN categories c ON c.id = p.category_id
 LEFT JOIN locations  l ON l.id = p.location_id
@@ -105,6 +109,7 @@ type GetProductDetailRow struct {
 	CategoryColor pgtype.Text        `json:"category_color"`
 	CategoryIcon  pgtype.Text        `json:"category_icon"`
 	LocationName  pgtype.Text        `json:"location_name"`
+	CoverPhotoID  pgtype.UUID        `json:"cover_photo_id"`
 }
 
 func (q *Queries) GetProductDetail(ctx context.Context, arg GetProductDetailParams) (GetProductDetailRow, error) {
@@ -126,6 +131,7 @@ func (q *Queries) GetProductDetail(ctx context.Context, arg GetProductDetailPara
 		&i.CategoryColor,
 		&i.CategoryIcon,
 		&i.LocationName,
+		&i.CoverPhotoID,
 	)
 	return i, err
 }
@@ -160,12 +166,62 @@ func (q *Queries) GetProductForUpdate(ctx context.Context, arg GetProductForUpda
 	return i, err
 }
 
+const getProductsForUpdate = `-- name: GetProductsForUpdate :many
+SELECT id, project_id, category_id, location_id, name, description, quantity, unit, min_quantity, created_at, updated_at FROM products
+WHERE project_id = $1 AND id = ANY($2::uuid[])
+ORDER BY id
+FOR UPDATE
+`
+
+type GetProductsForUpdateParams struct {
+	ProjectID pgtype.UUID   `json:"project_id"`
+	Ids       []pgtype.UUID `json:"ids"`
+}
+
+// Bloquea varios productos a la vez, SIEMPRE en el mismo orden (por id):
+// si dos salidas múltiples coinciden, ninguna se queda esperando a la otra para siempre (deadlock).
+func (q *Queries) GetProductsForUpdate(ctx context.Context, arg GetProductsForUpdateParams) ([]Product, error) {
+	rows, err := q.db.Query(ctx, getProductsForUpdate, arg.ProjectID, arg.Ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Product
+	for rows.Next() {
+		var i Product
+		if err := rows.Scan(
+			&i.ID,
+			&i.ProjectID,
+			&i.CategoryID,
+			&i.LocationID,
+			&i.Name,
+			&i.Description,
+			&i.Quantity,
+			&i.Unit,
+			&i.MinQuantity,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listProducts = `-- name: ListProducts :many
 SELECT p.id, p.project_id, p.category_id, p.location_id, p.name, p.description, p.quantity, p.unit, p.min_quantity, p.created_at, p.updated_at,
        c.name  AS category_name,
        c.color AS category_color,
        c.icon  AS category_icon,
-       l.name  AS location_name
+       l.name  AS location_name,
+       (SELECT ph.id FROM product_photos ph
+        WHERE ph.product_id = p.id
+        ORDER BY ph.position, ph.created_at
+        LIMIT 1)::uuid AS cover_photo_id
 FROM products p
 LEFT JOIN categories c ON c.id = p.category_id
 LEFT JOIN locations  l ON l.id = p.location_id
@@ -201,6 +257,7 @@ type ListProductsRow struct {
 	CategoryColor pgtype.Text        `json:"category_color"`
 	CategoryIcon  pgtype.Text        `json:"category_icon"`
 	LocationName  pgtype.Text        `json:"location_name"`
+	CoverPhotoID  pgtype.UUID        `json:"cover_photo_id"`
 }
 
 // Listado con filtros opcionales: cada filtro se ignora si llega NULL.
@@ -235,6 +292,7 @@ func (q *Queries) ListProducts(ctx context.Context, arg ListProductsParams) ([]L
 			&i.CategoryColor,
 			&i.CategoryIcon,
 			&i.LocationName,
+			&i.CoverPhotoID,
 		); err != nil {
 			return nil, err
 		}

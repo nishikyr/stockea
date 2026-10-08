@@ -12,6 +12,7 @@ import (
 
 type ProductHandler struct {
 	Products *services.ProductService
+	Photos   *services.PhotoService
 }
 
 // GET /api/projects/:projectID/products?category_id=&location_id=&q=&low_stock=true
@@ -42,11 +43,16 @@ func (h *ProductHandler) Get(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	p, err := h.Products.Get(c.Request().Context(), middleware.ProjectID(c), id)
+	ctx, projectID := c.Request().Context(), middleware.ProjectID(c)
+	p, err := h.Products.Get(ctx, projectID, id)
 	if err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, dto.NewProductResponse(p))
+	photos, err := h.Photos.List(ctx, projectID, id)
+	if err != nil {
+		return err
+	}
+	return c.JSON(http.StatusOK, dto.NewProductDetailResponse(p, photos))
 }
 
 // POST /api/projects/:projectID/products

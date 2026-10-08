@@ -74,3 +74,15 @@ func NewRegisterMovementResponse(m db.Movement, p db.Product, user db.User) Regi
 		LowStock:    p.Quantity <= p.MinQuantity,
 	}
 }
+
+type BatchItemRequest struct {
+	ProductID string `json:"product_id"`
+	Quantity  int32  `json:"quantity"`
+}
+
+// BatchMovementRequest: varias cosas a la vez, con un mismo tipo y motivo.
+type BatchMovementRequest struct {
+	Type   string             `json:"type"` // "in" | "out"
+	Reason string             `json:"reason"`
+	Items  []BatchItemRequest `json:"items"`
+}

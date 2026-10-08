@@ -45,6 +45,22 @@ func (q *Queries) DeleteSession(ctx context.Context, tokenHash string) error {
 	return err
 }
 
+const deleteUserSessionsExcept = `-- name: DeleteUserSessionsExcept :exec
+DELETE FROM sessions WHERE user_id = $1 AND token_hash <> $2
+`
+
+type DeleteUserSessionsExceptParams struct {
+	UserID    pgtype.UUID `json:"user_id"`
+	TokenHash string      `json:"token_hash"`
+}
+
+// Cierra todas las sesiones de un usuario salvo la indicada (la actual).
+// Pasando un hash vacío se cierran todas.
+func (q *Queries) DeleteUserSessionsExcept(ctx context.Context, arg DeleteUserSessionsExceptParams) error {
+	_, err := q.db.Exec(ctx, deleteUserSessionsExcept, arg.UserID, arg.TokenHash)
+	return err
+}
+
 const getUserBySessionToken = `-- name: GetUserBySessionToken :one
 SELECT u.id, u.email, u.password_hash, u.name, u.is_admin, u.created_at FROM users u
 JOIN sessions s ON s.user_id = u.id

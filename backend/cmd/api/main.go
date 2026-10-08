@@ -13,6 +13,7 @@ import (
 	"github.com/nishikyr/stockea/internal/handlers"
 	"github.com/nishikyr/stockea/internal/routes"
 	"github.com/nishikyr/stockea/internal/services"
+	"github.com/nishikyr/stockea/internal/storage"
 )
 
 func main() {
@@ -27,6 +28,12 @@ func main() {
 	}
 	defer pool.Close()
 
+	// Dónde se guardan las fotos. Para usar R2/S3 en el futuro, solo cambia esta línea.
+	store, err := storage.NewLocalStorage(cfg.UploadDir)
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	// Capa de datos → services → handlers
 	queries := db.New(pool)
 	authService := services.NewAuthService(queries)
@@ -34,7 +41,8 @@ func main() {
 	projectService := services.NewProjectService(queries)
 	categoryService := services.NewCategoryService(queries)
 	locationService := services.NewLocationService(queries)
-	productService := services.NewProductService(pool, queries)
+	productService := services.NewProductService(pool, queries, store)
+	photoService := services.NewPhotoService(queries, store)
 	movementService := services.NewMovementService(pool, queries)
 
 	e := echo.New()
@@ -48,13 +56,14 @@ func main() {
 		AuthService:    authService,
 		ProjectService: projectService,
 		Health:         &handlers.HealthHandler{DB: pool},
-		Auth:           &handlers.AuthHandler{Auth: authService, SecureCookie: cfg.Production},
+		Auth:           &handlers.AuthHandler{Auth: authService, Users: userService, SecureCookie: cfg.Production},
 		Users:          &handlers.UserHandler{Users: userService},
 		Projects:       &handlers.ProjectHandler{Projects: projectService},
 		Categories:     &handlers.CategoryHandler{Categories: categoryService},
 		Locations:      &handlers.LocationHandler{Locations: locationService},
-		Products:       &handlers.ProductHandler{Products: productService},
+		Products:       &handlers.ProductHandler{Products: productService, Photos: photoService},
 		Movements:      &handlers.MovementHandler{Movements: movementService},
+		Photos:         &handlers.PhotoHandler{Photos: photoService},
 	})
 
 	e.Logger.Fatal(e.Start(":" + cfg.Port))

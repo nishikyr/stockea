@@ -34,35 +34,68 @@ func NewProjectService(q *db.Queries) *ProjectService {
 	return &ProjectService{q: q}
 }
 
-// ProjectWithRole es un proyecto junto con el rol del usuario que lo consulta.
+// ProjectWithRole es un proyecto junto con el rol del usuario que lo consulta
+// y los contadores que muestran las tarjetas de la pantalla de proyectos.
 type ProjectWithRole struct {
 	db.Project
-	Role string
+	Role          string
+	ProductCount  int32
+	LowStockCount int32
+	MemberCount   int32
+}
+
+func validateProject(name, description string) (string, pgtype.Text, error) {
+	name = strings.TrimSpace(name)
+	if name == "" || len(name) > 100 {
+		return "", pgtype.Text{}, validation("el nombre del proyecto es obligatorio (máx. 100 caracteres)")
+	}
+	if len(description) > 500 {
+		return "", pgtype.Text{}, validation("la descripción no puede superar 500 caracteres")
+	}
+	return name, optionalText(description), nil
 }
 
 func (s *ProjectService) Create(ctx context.Context, name, description string, createdBy pgtype.UUID) (db.Project, error) {
-	name = strings.TrimSpace(name)
-	description = strings.TrimSpace(description)
-	if name == "" || len(name) > 100 {
-		return db.Project{}, validation("el nombre del proyecto es obligatorio (máx. 100 caracteres)")
+	name, desc, err := validateProject(name, description)
+	if err != nil {
+		return db.Project{}, err
 	}
 	return s.q.CreateProject(ctx, db.CreateProjectParams{
 		Name:        name,
-		Description: pgtype.Text{String: description, Valid: description != ""},
+		Description: desc,
 		CreatedBy:   createdBy,
 	})
+}
+
+// Update cambia el nombre y la descripción del proyecto.
+func (s *ProjectService) Update(ctx context.Context, id pgtype.UUID, name, description string) (db.Project, error) {
+	name, desc, err := validateProject(name, description)
+	if err != nil {
+		return db.Project{}, err
+	}
+	p, err := s.q.UpdateProject(ctx, db.UpdateProjectParams{ID: id, Name: name, Description: desc})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return db.Project{}, ErrProjectNotFound
+	}
+	return p, err
 }
 
 // ListForUser: el admin ve todos los proyectos; el resto, solo aquellos de los que es miembro.
 func (s *ProjectService) ListForUser(ctx context.Context, user db.User) ([]ProjectWithRole, error) {
 	if user.IsAdmin {
-		projects, err := s.q.ListAllProjects(ctx)
+		rows, err := s.q.ListAllProjects(ctx)
 		if err != nil {
 			return nil, err
 		}
-		out := make([]ProjectWithRole, len(projects))
-		for i, p := range projects {
-			out[i] = ProjectWithRole{Project: p, Role: RoleAdmin}
+		out := make([]ProjectWithRole, len(rows))
+		for i, r := range rows {
+			out[i] = ProjectWithRole{
+				Project:       db.Project{ID: r.ID, Name: r.Name, Description: r.Description, CreatedBy: r.CreatedBy, CreatedAt: r.CreatedAt},
+				Role:          RoleAdmin,
+				ProductCount:  r.ProductCount,
+				LowStockCount: r.LowStockCount,
+				MemberCount:   r.MemberCount,
+			}
 		}
 		return out, nil
 	}
@@ -74,8 +107,11 @@ func (s *ProjectService) ListForUser(ctx context.Context, user db.User) ([]Proje
 	out := make([]ProjectWithRole, len(rows))
 	for i, r := range rows {
 		out[i] = ProjectWithRole{
-			Project: db.Project{ID: r.ID, Name: r.Name, Description: r.Description, CreatedBy: r.CreatedBy, CreatedAt: r.CreatedAt},
-			Role:    string(r.Role),
+			Project:       db.Project{ID: r.ID, Name: r.Name, Description: r.Description, CreatedBy: r.CreatedBy, CreatedAt: r.CreatedAt},
+			Role:          string(r.Role),
+			ProductCount:  r.ProductCount,
+			LowStockCount: r.LowStockCount,
+			MemberCount:   r.MemberCount,
 		}
 	}
 	return out, nil

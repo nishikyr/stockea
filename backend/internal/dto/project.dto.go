@@ -30,10 +30,23 @@ func NewProjectResponse(p db.Project, role string) ProjectResponse {
 	}
 }
 
-func NewProjectListResponse(list []services.ProjectWithRole) []ProjectResponse {
-	out := make([]ProjectResponse, len(list))
+// ProjectSummaryResponse: lo que muestra cada tarjeta en la pantalla de proyectos.
+type ProjectSummaryResponse struct {
+	ProjectResponse
+	ProductCount  int32 `json:"product_count"`
+	LowStockCount int32 `json:"low_stock_count"`
+	MemberCount   int32 `json:"member_count"`
+}
+
+func NewProjectListResponse(list []services.ProjectWithRole) []ProjectSummaryResponse {
+	out := make([]ProjectSummaryResponse, len(list))
 	for i, p := range list {
-		out[i] = NewProjectResponse(p.Project, p.Role)
+		out[i] = ProjectSummaryResponse{
+			ProjectResponse: NewProjectResponse(p.Project, p.Role),
+			ProductCount:    p.ProductCount,
+			LowStockCount:   p.LowStockCount,
+			MemberCount:     p.MemberCount,
+		}
 	}
 	return out
 }

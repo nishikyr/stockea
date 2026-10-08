@@ -13,3 +13,8 @@ DELETE FROM sessions WHERE token_hash = $1;
 
 -- name: DeleteExpiredSessions :exec
 DELETE FROM sessions WHERE expires_at <= now();
+
+-- Cierra todas las sesiones de un usuario salvo la indicada (la actual).
+-- Pasando un hash vacío se cierran todas.
+-- name: DeleteUserSessionsExcept :exec
+DELETE FROM sessions WHERE user_id = $1 AND token_hash <> $2;

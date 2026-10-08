@@ -4,7 +4,11 @@ SELECT p.*,
        c.name  AS category_name,
        c.color AS category_color,
        c.icon  AS category_icon,
-       l.name  AS location_name
+       l.name  AS location_name,
+       (SELECT ph.id FROM product_photos ph
+        WHERE ph.product_id = p.id
+        ORDER BY ph.position, ph.created_at
+        LIMIT 1)::uuid AS cover_photo_id
 FROM products p
 LEFT JOIN categories c ON c.id = p.category_id
 LEFT JOIN locations  l ON l.id = p.location_id
@@ -20,7 +24,11 @@ SELECT p.*,
        c.name  AS category_name,
        c.color AS category_color,
        c.icon  AS category_icon,
-       l.name  AS location_name
+       l.name  AS location_name,
+       (SELECT ph.id FROM product_photos ph
+        WHERE ph.product_id = p.id
+        ORDER BY ph.position, ph.created_at
+        LIMIT 1)::uuid AS cover_photo_id
 FROM products p
 LEFT JOIN categories c ON c.id = p.category_id
 LEFT JOIN locations  l ON l.id = p.location_id
@@ -30,6 +38,14 @@ WHERE p.project_id = $1 AND p.id = $2;
 -- una salida a la vez, la segunda espera y ve el stock ya actualizado.
 -- name: GetProductForUpdate :one
 SELECT * FROM products WHERE project_id = $1 AND id = $2 FOR UPDATE;
+
+-- Bloquea varios productos a la vez, SIEMPRE en el mismo orden (por id):
+-- si dos salidas múltiples coinciden, ninguna se queda esperando a la otra para siempre (deadlock).
+-- name: GetProductsForUpdate :many
+SELECT * FROM products
+WHERE project_id = sqlc.arg(project_id) AND id = ANY(sqlc.arg(ids)::uuid[])
+ORDER BY id
+FOR UPDATE;
 
 -- name: CreateProduct :one
 INSERT INTO products (project_id, category_id, location_id, name, description, unit, min_quantity)

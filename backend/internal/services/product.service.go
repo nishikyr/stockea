@@ -9,17 +9,19 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/nishikyr/stockea/internal/db"
+	"github.com/nishikyr/stockea/internal/storage"
 )
 
 const maxQuantity = 1_000_000
 
 type ProductService struct {
-	pool TxStarter
-	q    *db.Queries
+	pool  TxStarter
+	q     *db.Queries
+	store storage.Storage // para borrar las fotos del producto al borrarlo
 }
 
-func NewProductService(pool TxStarter, q *db.Queries) *ProductService {
-	return &ProductService{pool: pool, q: q}
+func NewProductService(pool TxStarter, q *db.Queries, store storage.Storage) *ProductService {
+	return &ProductService{pool: pool, q: q, store: store}
 }
 
 type ProductFilter struct {
@@ -155,14 +157,22 @@ func (s *ProductService) Update(ctx context.Context, projectID, id pgtype.UUID, 
 	return s.Get(ctx, projectID, id)
 }
 
-// Delete borra el producto junto con su historial de movimientos.
+// Delete borra el producto junto con su historial de movimientos y sus fotos.
 func (s *ProductService) Delete(ctx context.Context, projectID, id pgtype.UUID) error {
+	// Primero apuntamos qué ficheros tiene: al borrar el producto, la BD borra sus filas de fotos
+	photos, err := s.q.ListProductPhotos(ctx, id)
+	if err != nil {
+		return err
+	}
 	n, err := s.q.DeleteProduct(ctx, db.DeleteProductParams{ProjectID: projectID, ID: id})
 	if err != nil {
 		return err
 	}
 	if n == 0 {
-		return ErrProductNotFound
+		return ErrProductNotFound // (y no tocamos ningún fichero)
+	}
+	for _, ph := range photos {
+		_ = s.store.Delete(ctx, ph.StorageKey) // si alguno falla, solo queda un fichero sin usar
 	}
 	return nil
 }

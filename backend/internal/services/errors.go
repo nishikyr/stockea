@@ -48,6 +48,9 @@ var (
 	ErrCategoryNameTaken = &Error{KindConflict, "ya existe una categoría con ese nombre"}
 	ErrLocationCycle     = validation("una ubicación no puede estar dentro de sí misma ni de una de sus sububicaciones")
 	ErrNothingToAdjust   = validation("la cantidad contada es igual al stock actual: no hay nada que ajustar")
+	ErrPhotoNotFound     = &Error{KindNotFound, "foto no encontrada"}
+	ErrUserIDNotFound    = &Error{KindNotFound, "usuario no encontrado"}
+	ErrWrongPassword     = &Error{KindValidation, "la contraseña actual no es correcta"}
 )
 
 // insufficientStock: el mensaje incluye cuánto queda, para que el usuario sepa qué pasa.

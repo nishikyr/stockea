@@ -45,6 +45,19 @@ func (h *ProjectHandler) Get(c echo.Context) error {
 	return c.JSON(http.StatusOK, dto.NewProjectResponse(project, middleware.ProjectRole(c)))
 }
 
+// PUT /api/projects/:projectID — (admin) cambia nombre y descripción
+func (h *ProjectHandler) Update(c echo.Context) error {
+	var req dto.CreateProjectRequest
+	if err := c.Bind(&req); err != nil {
+		return services.ErrInvalidRequest
+	}
+	project, err := h.Projects.Update(c.Request().Context(), middleware.ProjectID(c), req.Name, req.Description)
+	if err != nil {
+		return err
+	}
+	return c.JSON(http.StatusOK, dto.NewProjectResponse(project, middleware.ProjectRole(c)))
+}
+
 // GET /api/projects/:projectID/members — (admin)
 func (h *ProjectHandler) ListMembers(c echo.Context) error {
 	members, err := h.Projects.ListMembers(c.Request().Context(), middleware.ProjectID(c))

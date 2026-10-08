@@ -11,3 +11,6 @@ RETURNING *;
 
 -- name: ListUsers :many
 SELECT * FROM users ORDER BY name;
+
+-- name: UpdateUserPassword :exec
+UPDATE users SET password_hash = $2 WHERE id = $1;

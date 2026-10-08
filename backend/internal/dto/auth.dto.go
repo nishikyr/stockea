@@ -7,6 +7,11 @@ type LoginRequest struct {
 	Password string `json:"password"`
 }
 
+type ChangePasswordRequest struct {
+	CurrentPassword string `json:"current_password"`
+	NewPassword     string `json:"new_password"`
+}
+
 // UserResponse es lo que la API devuelve de un usuario (¡nunca el password_hash!).
 type UserResponse struct {
 	ID      string `json:"id"`

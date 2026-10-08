@@ -14,14 +14,15 @@ import (
 type Deps struct {
 	AuthService    *services.AuthService
 	ProjectService *services.ProjectService
-	Health     *handlers.HealthHandler
-	Auth       *handlers.AuthHandler
-	Users      *handlers.UserHandler
-	Projects   *handlers.ProjectHandler
-	Categories *handlers.CategoryHandler
-	Locations  *handlers.LocationHandler
-	Products   *handlers.ProductHandler
-	Movements  *handlers.MovementHandler
+	Health         *handlers.HealthHandler
+	Auth           *handlers.AuthHandler
+	Users          *handlers.UserHandler
+	Projects       *handlers.ProjectHandler
+	Categories     *handlers.CategoryHandler
+	Locations      *handlers.LocationHandler
+	Products       *handlers.ProductHandler
+	Movements      *handlers.MovementHandler
+	Photos         *handlers.PhotoHandler
 }
 
 func Register(e *echo.Echo, d Deps) {
@@ -46,11 +47,13 @@ func Register(e *echo.Echo, d Deps) {
 	authGroup.POST("/login", d.Auth.Login, loginLimiter)
 	authGroup.POST("/logout", d.Auth.Logout)
 	authGroup.GET("/me", d.Auth.Me, requireAuth)
+	authGroup.PUT("/password", d.Auth.ChangePassword, requireAuth)
 
 	// ── Usuarios (solo admin) ──
 	users := api.Group("/users", requireAuth, mw.RequireAdmin)
 	users.GET("", d.Users.List)
 	users.POST("", d.Users.Create)
+	users.PUT("/:userID/password", d.Users.ResetPassword)
 
 	// ── Proyectos ──
 	projects := api.Group("/projects", requireAuth)
@@ -59,6 +62,7 @@ func Register(e *echo.Echo, d Deps) {
 
 	project := projects.Group("/:projectID")
 	project.GET("", d.Projects.Get, viewer)
+	project.PUT("", d.Projects.Update, admin)
 
 	members := project.Group("/members", admin)
 	members.GET("", d.Projects.ListMembers)
@@ -86,5 +90,13 @@ func Register(e *echo.Echo, d Deps) {
 	products.DELETE("/:productID", d.Products.Delete, editor)
 	products.POST("/:productID/movements", d.Movements.Register, editor)
 
+	// Fotos: verlas cualquier miembro; subir/borrar editor. Límite de 11 MB por petición
+	// (la foto puede ocupar hasta 10 MB + lo que añade el formulario).
+	photos := products.Group("/:productID/photos")
+	photos.POST("", d.Photos.Upload, editor, echomw.BodyLimit("11M"))
+	photos.GET("/:photoID", d.Photos.Serve, viewer)
+	photos.DELETE("/:photoID", d.Photos.Delete, editor)
+
 	project.GET("/movements", d.Movements.List, viewer)
+	project.POST("/movements/batch", d.Movements.RegisterBatch, editor)
 }

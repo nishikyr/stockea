@@ -90,25 +90,44 @@ func (q *Queries) GetProjectRole(ctx context.Context, arg GetProjectRoleParams) 
 }
 
 const listAllProjects = `-- name: ListAllProjects :many
-SELECT id, name, description, created_by, created_at FROM projects ORDER BY name
+SELECT p.id, p.name, p.description, p.created_by, p.created_at,
+       (SELECT count(*) FROM products pr WHERE pr.project_id = p.id)::int AS product_count,
+       (SELECT count(*) FROM products pr WHERE pr.project_id = p.id AND pr.quantity <= pr.min_quantity)::int AS low_stock_count,
+       (SELECT count(*) FROM project_members m WHERE m.project_id = p.id)::int AS member_count
+FROM projects p
+ORDER BY p.name
 `
 
-// Todos los proyectos (para el admin)
-func (q *Queries) ListAllProjects(ctx context.Context) ([]Project, error) {
+type ListAllProjectsRow struct {
+	ID            pgtype.UUID        `json:"id"`
+	Name          string             `json:"name"`
+	Description   pgtype.Text        `json:"description"`
+	CreatedBy     pgtype.UUID        `json:"created_by"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+	ProductCount  int32              `json:"product_count"`
+	LowStockCount int32              `json:"low_stock_count"`
+	MemberCount   int32              `json:"member_count"`
+}
+
+// Todos los proyectos (para el admin), con contadores para las tarjetas
+func (q *Queries) ListAllProjects(ctx context.Context) ([]ListAllProjectsRow, error) {
 	rows, err := q.db.Query(ctx, listAllProjects)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []Project
+	var items []ListAllProjectsRow
 	for rows.Next() {
-		var i Project
+		var i ListAllProjectsRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.Name,
 			&i.Description,
 			&i.CreatedBy,
 			&i.CreatedAt,
+			&i.ProductCount,
+			&i.LowStockCount,
+			&i.MemberCount,
 		); err != nil {
 			return nil, err
 		}
@@ -161,7 +180,10 @@ func (q *Queries) ListProjectMembers(ctx context.Context, projectID pgtype.UUID)
 }
 
 const listProjectsForUser = `-- name: ListProjectsForUser :many
-SELECT p.id, p.name, p.description, p.created_by, p.created_at, pm.role
+SELECT p.id, p.name, p.description, p.created_by, p.created_at, pm.role,
+       (SELECT count(*) FROM products pr WHERE pr.project_id = p.id)::int AS product_count,
+       (SELECT count(*) FROM products pr WHERE pr.project_id = p.id AND pr.quantity <= pr.min_quantity)::int AS low_stock_count,
+       (SELECT count(*) FROM project_members m WHERE m.project_id = p.id)::int AS member_count
 FROM projects p
 JOIN project_members pm ON pm.project_id = p.id
 WHERE pm.user_id = $1
@@ -169,15 +191,18 @@ ORDER BY p.name
 `
 
 type ListProjectsForUserRow struct {
-	ID          pgtype.UUID        `json:"id"`
-	Name        string             `json:"name"`
-	Description pgtype.Text        `json:"description"`
-	CreatedBy   pgtype.UUID        `json:"created_by"`
-	CreatedAt   pgtype.Timestamptz `json:"created_at"`
-	Role        ProjectRole        `json:"role"`
+	ID            pgtype.UUID        `json:"id"`
+	Name          string             `json:"name"`
+	Description   pgtype.Text        `json:"description"`
+	CreatedBy     pgtype.UUID        `json:"created_by"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+	Role          ProjectRole        `json:"role"`
+	ProductCount  int32              `json:"product_count"`
+	LowStockCount int32              `json:"low_stock_count"`
+	MemberCount   int32              `json:"member_count"`
 }
 
-// Proyectos de los que el usuario es miembro, con su rol
+// Proyectos de los que el usuario es miembro, con su rol y los mismos contadores
 func (q *Queries) ListProjectsForUser(ctx context.Context, userID pgtype.UUID) ([]ListProjectsForUserRow, error) {
 	rows, err := q.db.Query(ctx, listProjectsForUser, userID)
 	if err != nil {
@@ -194,6 +219,9 @@ func (q *Queries) ListProjectsForUser(ctx context.Context, userID pgtype.UUID) (
 			&i.CreatedBy,
 			&i.CreatedAt,
 			&i.Role,
+			&i.ProductCount,
+			&i.LowStockCount,
+			&i.MemberCount,
 		); err != nil {
 			return nil, err
 		}
@@ -203,6 +231,31 @@ func (q *Queries) ListProjectsForUser(ctx context.Context, userID pgtype.UUID) (
 		return nil, err
 	}
 	return items, nil
+}
+
+const updateProject = `-- name: UpdateProject :one
+UPDATE projects SET name = $2, description = $3
+WHERE id = $1
+RETURNING id, name, description, created_by, created_at
+`
+
+type UpdateProjectParams struct {
+	ID          pgtype.UUID `json:"id"`
+	Name        string      `json:"name"`
+	Description pgtype.Text `json:"description"`
+}
+
+func (q *Queries) UpdateProject(ctx context.Context, arg UpdateProjectParams) (Project, error) {
+	row := q.db.QueryRow(ctx, updateProject, arg.ID, arg.Name, arg.Description)
+	var i Project
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Description,
+		&i.CreatedBy,
+		&i.CreatedAt,
+	)
+	return i, err
 }
 
 const upsertProjectMember = `-- name: UpsertProjectMember :exec
