@@ -1,1 +1,32 @@
 @import "tailwindcss";
+
+@theme {
+  --font-sans: "Figtree", system-ui, sans-serif;
+  --font-display: "Bricolage Grotesque", "Figtree", sans-serif;
+
+  --color-sand: #F6EFE4;        /* fondo de la app */
+  --color-cream: #FFFCF7;       /* tarjetas e inputs */
+  --color-line: #E7DCCB;        /* bordes */
+  --color-ink: #2A241E;         /* texto principal */
+  --color-muted: #6A5F53;       /* texto secundario */
+
+  --color-brand: #1E6B66;       /* botones principales */
+  --color-brand-dark: #164F4B;
+  --color-brand-soft: #DDEDEA;
+
+  --color-warn: #8A420A;        /* stock bajo */
+  --color-warn-soft: #FCEBD3;
+
+  --color-out: #9E3519;         /* salidas */
+  --color-out-soft: #F9E1D8;
+  --color-in: #2C6328;          /* entradas */
+  --color-in-soft: #E1F0DA;
+  --color-adjust: #27527F;      /* recuentos */
+  --color-adjust-soft: #DFEAF5;
+}
+
+@layer base {
+  body {
+    @apply bg-sand text-ink font-sans antialiased;
+  }
+}
