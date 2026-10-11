@@ -64,3 +64,21 @@ export type Product = {
 export type Category = CategoryRef & {
   product_count: number
 }
+
+// --- Movimientos -------------------------------------------------------------
+
+// in = Guardar, out = Sacar, adjust = Recontar
+export type MovementType = 'in' | 'out' | 'adjust'
+
+export type Movement = {
+  id: string
+  product_id: string
+  product_name: string
+  type: MovementType
+  delta: number // cuánto cambió el stock: +4, -2… (en un recuento, la diferencia)
+  unit: string
+  reason: string
+  user_id: string
+  user_name: string
+  created_at: string
+}

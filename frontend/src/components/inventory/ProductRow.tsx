@@ -1,16 +1,18 @@
+import { Link } from 'react-router'
 import { categoryTint } from '../../lib/categoryStyle'
 import type { Product } from '../../types/api'
 import { CategoryIcon } from './CategoryIcon'
 
 // Una fila del inventario: foto (o icono de la categoría), nombre, dónde está y cuántos quedan.
-// En el paso 6 la convertiremos en enlace a la ficha del producto.
+// Toda la fila es un enlace a la ficha del producto (ruta relativa: products/:id).
 export function ProductRow({ product }: { product: Product }) {
   const { name, quantity, unit, low_stock, location, category, photo_url } = product
   const soldOut = quantity === 0
 
   return (
-    <div
-      className={`flex items-center gap-3.5 rounded-[20px] bg-cream p-3 ${
+    <Link
+      to={`products/${product.id}`}
+      className={`flex items-center gap-3.5 rounded-[20px] bg-cream p-3 text-ink transition-transform active:scale-[0.99] ${
         low_stock ? 'shadow-[inset_0_0_0_2px_#E8B06A]' : ''
       }`}
     >
@@ -41,6 +43,6 @@ export function ProductRow({ product }: { product: Product }) {
         </span>
         <span className="text-[13px] text-muted">{unit}</span>
       </div>
-    </div>
+    </Link>
   )
 }

@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { Navigate, Route, Routes } from 'react-router'
 import { RequireAuth } from './auth/RequireAuth'
 import { LoginPage } from './pages/LoginPage'
+import { ProductPage } from './pages/ProductPage'
 import { ProjectPage } from './pages/ProjectPage'
 import { ProjectsPage } from './pages/ProjectsPage'
 import { HistoryPage } from './pages/project/HistoryPage'
@@ -21,6 +22,8 @@ export default function App() {
         <Route path="history" element={<HistoryPage />} />
         <Route path="settings" element={<SettingsPage />} />
       </Route>
+      {/* La ficha del producto va fuera del marco: pantalla completa, sin pestañas abajo */}
+      <Route path="/projects/:projectId/products/:productId" element={<Protected><ProductPage /></Protected>} />
 
       {/* Cualquier otra dirección: a la pantalla principal */}
       <Route path="*" element={<Navigate to="/" replace />} />

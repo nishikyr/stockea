@@ -24,3 +24,11 @@ export function useCategories(projectId: string) {
     queryFn: () => api<Category[]>(`/projects/${projectId}/categories`),
   })
 }
+
+// Un producto con todas sus fotos (para su ficha)
+export function useProduct(projectId: string, productId: string) {
+  return useQuery({
+    queryKey: [...inventoryKeys.products(projectId), productId],
+    queryFn: () => api<Product>(`/projects/${projectId}/products/${productId}`),
+  })
+}

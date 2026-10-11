@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useSearchParams } from 'react-router'
 import { useCategories, useProducts } from '../../api/inventory'
 import { useCurrentProject } from '../../api/projects'
 import { CategoryChips } from '../../components/inventory/CategoryChips'
@@ -15,10 +15,29 @@ export function InventoryPage() {
   const products = useProducts(projectId)
   const categories = useCategories(projectId)
 
-  // Estado de los filtros: vive solo en esta pantalla
-  const [search, setSearch] = useState('')
-  const [category, setCategory] = useState<CategoryFilter>('all')
-  const [lowOnly, setLowOnly] = useState(false)
+  // Los filtros viven en la URL (?q=taladro&cat=…&low=1) y no en useState. Así, al entrar
+  // en un producto y volver atrás, siguen puestos; y si recargas la página, también.
+  const [params, setParams] = useSearchParams()
+  const search = params.get('q') ?? ''
+  const category: CategoryFilter = params.get('cat') ?? 'all'
+  const lowOnly = params.get('low') === '1'
+
+  // Cambia un filtro y deja los demás como estaban. replace: true → escribir en el buscador
+  // no llena el historial del navegador (el botón Atrás no va letra a letra).
+  function setFilter(key: 'q' | 'cat' | 'low', value: string | null) {
+    setParams(
+      (prev) => {
+        const next = new URLSearchParams(prev)
+        if (value) next.set(key, value)
+        else next.delete(key)
+        return next
+      },
+      { replace: true },
+    )
+  }
+  const setSearch = (v: string) => setFilter('q', v || null)
+  const setCategory = (v: CategoryFilter) => setFilter('cat', v === 'all' ? null : v)
+  const setLowOnly = (v: boolean) => setFilter('low', v ? '1' : null)
 
   const all = products.data ?? []
   const low = all.filter((p) => p.low_stock)
@@ -29,9 +48,7 @@ export function InventoryPage() {
   const canEdit = project?.role !== 'viewer'
 
   function clearFilters() {
-    setSearch('')
-    setCategory('all')
-    setLowOnly(false)
+    setParams({}, { replace: true })
   }
 
   return (
