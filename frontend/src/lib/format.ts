@@ -15,3 +15,9 @@ export const roleLabel: Record<Role, string> = {
 export function firstName(fullName: string) {
   return fullName.trim().split(/\s+/)[0] ?? ''
 }
+
+// "1 ud", "3 uds", "2 cajas". Solo singularizamos "uds" (el resto de unidades las escribe el usuario
+// y quitar la "s" a ciegas fallaría: "pares" → "pare").
+export function qty(count: number, unit: string) {
+  return `${count} ${count === 1 && unit === 'uds' ? 'ud' : unit}`
+}

@@ -1,6 +1,9 @@
-import { useSearchParams } from 'react-router'
+import { PackageMinus } from 'lucide-react'
+import { useCallback } from 'react'
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router'
 import { useCategories, useProducts } from '../../api/inventory'
 import { useCurrentProject } from '../../api/projects'
+import { Flash } from '../../components/Flash'
 import { CategoryChips } from '../../components/inventory/CategoryChips'
 import { LowStockBanner } from '../../components/inventory/LowStockBanner'
 import { ProductRow } from '../../components/inventory/ProductRow'
@@ -47,12 +50,25 @@ export function InventoryPage() {
   const hasFilters = search !== '' || category !== 'all' || lowOnly
   const canEdit = project?.role !== 'viewer'
 
+  // Mensaje que nos manda otra pantalla al volver (p. ej. "Hecho: has sacado 2 productos").
+  // Viaja en el "state" de la navegación, no en la URL. Al ocultarlo, lo borramos de ese state
+  // para que no vuelva a salir si recargas.
+  const location = useLocation()
+  const navigate = useNavigate()
+  const flash = (location.state as { flash?: string } | null)?.flash
+  const hideFlash = useCallback(
+    () => navigate({ search: location.search }, { replace: true, state: null }),
+    [navigate, location.search],
+  )
+
   function clearFilters() {
     setParams({}, { replace: true })
   }
 
   return (
     <main className="flex flex-col gap-4">
+      {flash && <Flash message={flash} onHide={hideFlash} />}
+
       <div>
         <h1 className="font-display text-4xl leading-tight font-bold tracking-tight">Inventario</h1>
         {products.data && (
@@ -62,6 +78,13 @@ export function InventoryPage() {
           </p>
         )}
       </div>
+
+      {canEdit && all.some((p) => p.quantity > 0) && (
+        <Link to="exit" className="flex min-h-12 items-center justify-center gap-2 rounded-2xl border-[1.5px] border-line
+          bg-cream px-5 font-bold text-ink">
+          <PackageMinus size={20} aria-hidden="true" /> Sacar varias cosas
+        </Link>
+      )}
 
       {products.isPending && <Loading />}
       {products.error && (

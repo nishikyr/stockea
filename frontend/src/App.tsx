@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { Navigate, Route, Routes } from 'react-router'
 import { RequireAuth } from './auth/RequireAuth'
+import { BatchExitPage } from './pages/BatchExitPage'
 import { LoginPage } from './pages/LoginPage'
 import { ProductPage } from './pages/ProductPage'
 import { ProjectPage } from './pages/ProjectPage'
@@ -24,6 +25,7 @@ export default function App() {
       </Route>
       {/* La ficha del producto va fuera del marco: pantalla completa, sin pestañas abajo */}
       <Route path="/projects/:projectId/products/:productId" element={<Protected><ProductPage /></Protected>} />
+      <Route path="/projects/:projectId/exit" element={<Protected><BatchExitPage /></Protected>} />
 
       {/* Cualquier otra dirección: a la pantalla principal */}
       <Route path="*" element={<Navigate to="/" replace />} />

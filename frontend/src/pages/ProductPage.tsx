@@ -1,21 +1,40 @@
-import { ChevronLeft, MapPin } from 'lucide-react'
+import { ArrowDownToLine, ArrowUpFromLine, ChevronLeft, ListChecks, MapPin } from 'lucide-react'
+import { useCallback, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router'
 import { useProduct } from '../api/inventory'
-import { useMovements } from '../api/movements'
+import { useMovements, type MovementResult } from '../api/movements'
+import { useProject } from '../api/projects'
+import { Flash } from '../components/Flash'
+import { MovementSheet } from '../components/movements/MovementSheet'
 import { CategoryIcon } from '../components/inventory/CategoryIcon'
 import { MovementList } from '../components/movements/MovementList'
 import { PhotoStrip } from '../components/inventory/PhotoStrip'
 import { EmptyState, ErrorMessage, Loading } from '../components/StatusMessage'
 import { categoryTint } from '../lib/categoryStyle'
+import { qty } from '../lib/format'
+import type { MovementType } from '../types/api'
 
-// Ficha de un producto: fotos, cuántos hay y su historial.
-// (En el paso 7 añadimos aquí los botones Sacar / Guardar / Recontar.)
+// Ficha de un producto: fotos, cuántos hay, botones para moverlo y su historial.
 export function ProductPage() {
   const { projectId = '', productId = '' } = useParams()
   const navigate = useNavigate()
   const location = useLocation()
   const { data: product, isPending, error } = useProduct(projectId, productId)
   const movements = useMovements(projectId, { productId }, 10)
+  const { data: project } = useProject(projectId)
+  const canEdit = project !== undefined && project.role !== 'viewer'
+
+  // Qué hoja está abierta (null = ninguna) y el mensaje de "hecho"
+  const [sheet, setSheet] = useState<MovementType | null>(null)
+  const [flash, setFlash] = useState<string | null>(null)
+  // useCallback: la misma función en cada render, para que el temporizador de Flash no se reinicie
+  const hideFlash = useCallback(() => setFlash(null), [])
+
+  function handleDone(result: MovementResult, type: MovementType) {
+    const left = qty(result.new_quantity, result.movement.unit)
+    const delta = qty(Math.abs(result.movement.delta), result.movement.unit)
+    setFlash(type === 'out' ? `Sacado: ${delta}. Quedan ${left}.` : type === 'in' ? `Guardado: ${delta}. Hay ${left}.` : `Recuento guardado: hay ${left}.`)
+  }
 
   // "Atrás": si venimos de dentro de la app, volvemos a donde estábamos (con los filtros puestos).
   // Si se abrió el enlace directamente, no hay "atrás": vamos al inventario.
@@ -77,25 +96,38 @@ export function ProductPage() {
           </section>
 
           <section
-            className={`flex items-end justify-between rounded-3xl bg-cream p-5 ${
+            className={`flex flex-col gap-4.5 rounded-3xl bg-cream p-5 ${
               product.low_stock ? 'shadow-[inset_0_0_0_2px_#E8B06A]' : ''
             }`}
           >
-            <div>
-              <p className="text-[15px] text-muted">Hay ahora</p>
-              <p className={`font-display text-[56px] leading-none font-bold ${product.low_stock ? 'text-warn' : ''}`}>
-                {product.quantity} <span className="text-[22px] font-semibold">{product.unit}</span>
-              </p>
+            <div className="flex items-end justify-between">
+              <div>
+                <p className="text-[15px] text-muted">Hay ahora</p>
+                <p className={`font-display text-[56px] leading-none font-bold ${product.low_stock ? 'text-warn' : ''}`}>
+                  {product.quantity} <span className="text-[22px] font-semibold">{product.unit}</span>
+                </p>
+              </div>
+              <div className="mb-1.5 flex flex-col items-end gap-1 text-right">
+                {product.low_stock && (
+                  <span className="rounded-full bg-warn-soft px-2 py-0.5 text-[13px] font-bold text-warn">
+                    {product.quantity === 0 ? 'Agotado' : 'Stock bajo'}
+                  </span>
+                )}
+                {product.min_quantity > 0 && <p className="text-sm text-muted">Mínimo: {product.min_quantity}</p>}
+              </div>
             </div>
-            <div className="mb-1.5 flex flex-col items-end gap-1 text-right">
-              {product.low_stock && (
-                <span className="rounded-full bg-warn-soft px-2 py-0.5 text-[13px] font-bold text-warn">
-                  {product.quantity === 0 ? 'Agotado' : 'Stock bajo'}
-                </span>
-              )}
-              {product.min_quantity > 0 && <p className="text-sm text-muted">Mínimo: {product.min_quantity}</p>}
-            </div>
+
+            {canEdit && (
+              <div className="grid grid-cols-3 gap-2.5">
+                <ActionButton primary icon={ArrowUpFromLine} label="Sacar" disabled={product.quantity === 0}
+                  onClick={() => setSheet('out')} />
+                <ActionButton icon={ArrowDownToLine} label="Guardar" onClick={() => setSheet('in')} />
+                <ActionButton icon={ListChecks} label="Recontar" onClick={() => setSheet('adjust')} />
+              </div>
+            )}
           </section>
+
+          {flash && <Flash message={flash} onHide={hideFlash} />}
 
           <section className="flex flex-col gap-3">
             <h2 className="font-display text-xl font-bold">Movimientos</h2>
@@ -113,6 +145,31 @@ export function ProductPage() {
           </section>
         </>
       )}
+
+      {/* La hoja solo existe mientras está abierta: al cerrarse se desmonta y se resetea sola */}
+      {product && sheet && (
+        <MovementSheet projectId={projectId} product={product} initialType={sheet}
+          onClose={() => setSheet(null)} onDone={handleDone} />
+      )}
     </main>
+  )
+}
+
+type ActionProps = {
+  icon: typeof ArrowUpFromLine
+  label: string
+  onClick: () => void
+  primary?: boolean
+  disabled?: boolean
+}
+
+function ActionButton({ icon: Icon, label, onClick, primary, disabled }: ActionProps) {
+  return (
+    <button type="button" onClick={onClick} disabled={disabled}
+      className={`flex h-18 flex-col items-center justify-center gap-1 rounded-[18px] text-[15px] font-bold
+        disabled:opacity-40 ${primary ? 'bg-brand text-white' : 'border-[1.5px] border-line bg-cream text-ink'}`}>
+      <Icon size={24} aria-hidden="true" />
+      {label}
+    </button>
   )
 }
