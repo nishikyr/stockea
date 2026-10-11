@@ -4,6 +4,9 @@ import { RequireAuth } from './auth/RequireAuth'
 import { LoginPage } from './pages/LoginPage'
 import { ProjectPage } from './pages/ProjectPage'
 import { ProjectsPage } from './pages/ProjectsPage'
+import { HistoryPage } from './pages/project/HistoryPage'
+import { InventoryPage } from './pages/project/InventoryPage'
+import { SettingsPage } from './pages/project/SettingsPage'
 
 // El mapa de pantallas del frontend (como routes.go en el backend)
 export default function App() {
@@ -11,7 +14,14 @@ export default function App() {
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/" element={<Protected><ProjectsPage /></Protected>} />
-      <Route path="/projects/:projectId" element={<Protected><ProjectPage /></Protected>} />
+
+      {/* Rutas anidadas: ProjectPage es el marco y dentro se pinta la pestaña (en su <Outlet />) */}
+      <Route path="/projects/:projectId" element={<Protected><ProjectPage /></Protected>}>
+        <Route index element={<InventoryPage />} />
+        <Route path="history" element={<HistoryPage />} />
+        <Route path="settings" element={<SettingsPage />} />
+      </Route>
+
       {/* Cualquier otra dirección: a la pantalla principal */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

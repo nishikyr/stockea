@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { Project, ProjectSummary } from '../types/api'
+import { useParams } from 'react-router'
 import { api } from './client'
 
 // Las "claves" identifican cada dato en la caché de TanStack Query.
@@ -31,4 +32,11 @@ export function useCreateProject() {
     mutationFn: (input: NewProject) => api<Project>('/projects', { method: 'POST', body: input }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: projectKeys.all }),
   })
+}
+
+// El proyecto de la URL actual (/projects/:projectId/...). Lo usan todas las pestañas del proyecto.
+// No hace una petición nueva cada vez: TanStack Query lo saca de la caché.
+export function useCurrentProject() {
+  const { projectId = '' } = useParams()
+  return { projectId, ...useProject(projectId) }
 }

@@ -1,34 +1,42 @@
-import { ChevronLeft } from 'lucide-react'
-import { Link, useParams } from 'react-router'
-import { useProject } from '../api/projects'
+import { ChevronDown } from 'lucide-react'
+import { Link, Outlet } from 'react-router'
+import { useCurrentProject } from '../api/projects'
+import { useAuth } from '../auth/useAuth'
+import { ProjectNav } from '../components/ProjectNav'
 import { ErrorMessage, Loading } from '../components/StatusMessage'
-import { Badge } from '../components/ui/Badge'
-import { roleLabel } from '../lib/format'
 
-// Provisional: en el paso 5 aquí irá el inventario del proyecto.
+// El "marco" de un proyecto: cabecera arriba, pestañas abajo y, en medio (<Outlet />),
+// la pestaña que toque: Inventario, Historial o Ajustes.
 export function ProjectPage() {
-  const { projectId = '' } = useParams()
-  const { data: project, isPending, error } = useProject(projectId)
+  const { user } = useAuth()
+  const { data: project, isPending, error, refetch } = useCurrentProject()
 
   return (
-    <main className="mx-auto flex min-h-dvh max-w-md flex-col gap-6 px-5 pt-4 pb-10">
-      <Link to="/" className="-ml-2 flex min-h-11 w-fit items-center gap-1 px-2 font-semibold text-ink">
-        <ChevronLeft size={22} aria-hidden="true" /> Proyectos
-      </Link>
+    <div className="mx-auto flex min-h-dvh max-w-md flex-col px-5 pb-28">
+      <header className="flex items-center justify-between gap-3 pt-4 pb-2">
+        <Link
+          to="/"
+          aria-label="Cambiar de trastero"
+          className="-ml-1 flex min-h-11 min-w-0 items-center gap-1.5 px-1 text-[15px] font-semibold text-muted"
+        >
+          <span className="truncate">{project?.name ?? 'Proyectos'}</span>
+          <ChevronDown size={18} aria-hidden="true" className="flex-none" />
+        </Link>
+        <Link
+          to="settings"
+          aria-label="Tu cuenta"
+          className="flex size-11 flex-none items-center justify-center rounded-full bg-brand font-display text-lg
+            font-bold text-white"
+        >
+          {user?.name.charAt(0).toUpperCase()}
+        </Link>
+      </header>
 
       {isPending && <Loading />}
-      {error && <ErrorMessage message={error.message} />}
+      {error && <ErrorMessage message={error.message} onRetry={() => void refetch()} />}
+      {project && <Outlet />}
 
-      {project && (
-        <>
-          <div className="flex flex-col gap-2">
-            <Badge tone={project.role === 'viewer' ? 'neutral' : 'brand'}>{roleLabel[project.role]}</Badge>
-            <h1 className="font-display text-[34px] leading-tight font-bold tracking-tight">{project.name}</h1>
-            {project.description && <p className="text-muted">{project.description}</p>}
-          </div>
-          <p className="text-center text-muted">Aquí irá el inventario (paso 5).</p>
-        </>
-      )}
-    </main>
+      <ProjectNav />
+    </div>
   )
 }

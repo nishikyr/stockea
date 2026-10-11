@@ -24,3 +24,43 @@ export type ProjectSummary = Project & {
   low_stock_count: number
   member_count: number
 }
+
+// --- Inventario -------------------------------------------------------------
+
+// Versión corta de categoría/ubicación que viene dentro de cada producto
+export type CategoryRef = {
+  id: string
+  name: string
+  color: string // "#rrggbb"
+  icon: string // nombre de icono, p. ej. "wrench" ("" si no tiene)
+}
+
+export type LocationRef = {
+  id: string
+  name: string
+}
+
+export type Photo = {
+  id: string
+  url: string
+}
+
+export type Product = {
+  id: string
+  name: string
+  description: string
+  quantity: number
+  unit: string // "uds", "cajas"…
+  min_quantity: number
+  low_stock: boolean // true si quantity <= min_quantity (lo calcula el backend)
+  category: CategoryRef | null
+  location: LocationRef | null
+  photo_url: string | null // foto de portada
+  photos?: Photo[] // todas las fotos: solo en el detalle del producto
+  created_at: string
+  updated_at: string
+}
+
+export type Category = CategoryRef & {
+  product_count: number
+}
