@@ -90,3 +90,13 @@ export type Location = {
   parent_id: string | null // null = está en el primer nivel (no dentro de otra)
   product_count: number
 }
+
+// --- Administración ----------------------------------------------------------
+
+// Alguien con acceso a un proyecto (el admin no aparece: ya tiene acceso a todo)
+export type Member = {
+  id: string
+  email: string
+  name: string
+  role: 'editor' | 'viewer'
+}

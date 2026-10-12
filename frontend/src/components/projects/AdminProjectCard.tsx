@@ -23,12 +23,16 @@ export function AdminProjectCard({ project }: { project: ProjectSummary }) {
         <ChevronRight size={22} aria-hidden="true" className="text-muted" />
       </Link>
 
-      <div className="flex items-center gap-2 border-t border-[#EFE6D8] pt-3.5 text-[15px] text-muted">
+      <Link to={`/projects/${project.id}/members`}
+        className="flex min-h-11 items-center gap-2 border-t border-[#EFE6D8] pt-3.5 text-[15px] text-muted">
         <Users size={18} aria-hidden="true" />
-        {project.member_count === 0
-          ? 'Nadie más tiene acceso todavía'
-          : plural(project.member_count, 'persona con acceso', 'personas con acceso')}
-      </div>
+        <span className="flex-1">
+          {project.member_count === 0
+            ? 'Nadie más tiene acceso todavía'
+            : plural(project.member_count, 'persona con acceso', 'personas con acceso')}
+        </span>
+        <span className="font-semibold text-brand">Gestionar</span>
+      </Link>
     </article>
   )
 }

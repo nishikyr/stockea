@@ -1,5 +1,6 @@
-import { Plus } from 'lucide-react'
+import { ChevronRight, Plus, UserRound } from 'lucide-react'
 import { useState } from 'react'
+import { Link } from 'react-router'
 import { useProjects } from '../api/projects'
 import { useAuth } from '../auth/useAuth'
 import { AppHeader } from '../components/AppHeader'
@@ -97,6 +98,12 @@ function AdminProjects() {
           Crear otro trastero
         </button>
       )}
+
+      <Link to="/accounts" className="flex min-h-14 items-center gap-3 rounded-3xl bg-cream px-5 font-semibold text-ink">
+        <UserRound size={20} aria-hidden="true" className="text-muted" />
+        <span className="flex-1">Cuentas de usuario</span>
+        <ChevronRight size={20} aria-hidden="true" className="text-muted" />
+      </Link>
     </>
   )
 }

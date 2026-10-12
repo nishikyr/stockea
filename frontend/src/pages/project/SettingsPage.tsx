@@ -1,16 +1,19 @@
-import { LogOut, Warehouse } from 'lucide-react'
+import { KeyRound, LogOut, Users, Warehouse } from 'lucide-react'
+import { useState } from 'react'
 import { Link } from 'react-router'
 import { useCurrentProject } from '../../api/projects'
 import { useAuth } from '../../auth/useAuth'
+import { ChangePasswordForm } from '../../components/admin/ChangePasswordForm'
 import { Badge } from '../../components/ui/Badge'
 import { Button } from '../../components/ui/Button'
 import { roleLabel } from '../../lib/format'
 
 // Ajustes: quién eres, qué puedes hacer aquí y cerrar sesión.
-// En el paso 9 el admin tendrá aquí también "Miembros" y "Editar proyecto".
 export function SettingsPage() {
   const { user, logout } = useAuth()
   const { data: project } = useCurrentProject()
+  const [changingPassword, setChangingPassword] = useState(false)
+  const [passwordChanged, setPasswordChanged] = useState(false)
   if (!user || !project) return null
 
   return (
@@ -37,6 +40,24 @@ export function SettingsPage() {
             : 'Puedes añadir productos, fotos y registrar lo que entra y sale.'}
         </p>
       </section>
+
+      {user.is_admin && (
+        <Link to={`/projects/${project.id}/members`}
+          className="flex min-h-12 items-center gap-3 rounded-2xl bg-cream px-5 font-semibold text-ink">
+          <Users size={20} aria-hidden="true" /> Acceso y datos del trastero
+        </Link>
+      )}
+
+      {changingPassword ? (
+        <ChangePasswordForm onCancel={() => setChangingPassword(false)}
+          onSuccess={() => { setChangingPassword(false); setPasswordChanged(true) }} />
+      ) : (
+        <button type="button" onClick={() => { setChangingPassword(true); setPasswordChanged(false) }}
+          className="flex min-h-12 items-center gap-3 rounded-2xl bg-cream px-5 text-left font-semibold text-ink">
+          <KeyRound size={20} aria-hidden="true" /> Cambiar mi contraseña
+        </button>
+      )}
+      {passwordChanged && <p role="status" className="font-semibold text-in">Contraseña cambiada.</p>}
 
       <Link to="/" className="flex min-h-12 items-center gap-3 rounded-2xl bg-cream px-5 font-semibold text-ink">
         <Warehouse size={20} aria-hidden="true" /> Cambiar de trastero

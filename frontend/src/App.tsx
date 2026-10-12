@@ -1,10 +1,12 @@
 import type { ReactNode } from 'react'
 import { Navigate, Route, Routes } from 'react-router'
 import { RequireAuth } from './auth/RequireAuth'
+import { AccountsPage } from './pages/AccountsPage'
 import { BatchExitPage } from './pages/BatchExitPage'
 import { LoginPage } from './pages/LoginPage'
 import { ProductFormPage } from './pages/ProductFormPage'
 import { ProductPage } from './pages/ProductPage'
+import { ProjectAdminPage } from './pages/ProjectAdminPage'
 import { ProjectPage } from './pages/ProjectPage'
 import { ProjectsPage } from './pages/ProjectsPage'
 import { HistoryPage } from './pages/project/HistoryPage'
@@ -28,6 +30,8 @@ export default function App() {
       <Route path="/projects/:projectId/products/:productId" element={<Protected><ProductPage /></Protected>} />
       <Route path="/projects/:projectId/products/new" element={<Protected><ProductFormPage /></Protected>} />
       <Route path="/projects/:projectId/products/:productId/edit" element={<Protected><ProductFormPage /></Protected>} />
+      <Route path="/projects/:projectId/members" element={<Protected><ProjectAdminPage /></Protected>} />
+      <Route path="/accounts" element={<Protected><AccountsPage /></Protected>} />
       <Route path="/projects/:projectId/exit" element={<Protected><BatchExitPage /></Protected>} />
 
       {/* Cualquier otra dirección: a la pantalla principal */}
