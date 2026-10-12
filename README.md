@@ -4,13 +4,16 @@ Inventario visual de trasteros, organizado por proyectos (ej. "HomeBox Atocha - 
 
 ## Stack
 - **Backend:** Go + Echo, PostgreSQL (pgx), consultas tipadas con sqlc, migraciones con goose
-- **Frontend:** React + Vite + Tailwind (pendiente)
-- **Fotos:** Cloudflare R2 / AWS S3 (pendiente)
+- **Frontend:** React + TypeScript + Vite + Tailwind, TanStack Query, React Router
+- **Fotos:** disco local (`UPLOAD_DIR`); en producción, almacenamiento de objetos (pendiente)
+- **Producción:** una sola imagen Docker: Go sirve la API y el frontend compilado
 
 ## Estructura
 ```
 stockea/
 ├── docker-compose.yml               # Postgres local (puerto 5433)
+├── Dockerfile                       # imagen de producción (frontend + backend + goose)
+├── frontend/                        # React (ver "Arrancar el frontend")
 └── backend/
     ├── cmd/
     │   ├── api/main.go              # arranque: config → BD → services → handlers → rutas
@@ -27,6 +30,7 @@ stockea/
         ├── services/                # lógica de negocio y validaciones
         ├── handlers/                # HTTP: request → service → respuesta JSON
         ├── dto/                     # formas de entrada/salida de la API
+        ├── web/                     # producción: IP real tras el proxy, cabeceras de seguridad, servir el frontend
         └── routes/routes.go         # todas las rutas en un sitio
 ```
 
@@ -35,7 +39,7 @@ Los services devuelven errores de negocio (`services/errors.go`) y `handlers/err
 los convierte en el código HTTP adecuado con un JSON `{"message": "..."}`.
 
 ## Modelo de datos
-- `users` — `is_admin` = administrador global (crea proyectos y usuarios)
+- `users` — `is_admin` = administrador global (crea proyectos y usuarios); `disabled_at` = cuenta desactivada
 - `sessions` — sesiones activas (solo el hash SHA-256 del token)
 - `projects` + `project_members` — cada usuario tiene rol `editor` o `viewer` por proyecto
 - `categories`, `locations` (anidables: Estantería > Caja, con `qr_code`)
@@ -74,6 +78,14 @@ go run ./cmd/api
 # → http://localhost:8080/api/health
 ```
 
+## Arrancar el frontend (en otra terminal)
+```powershell
+cd frontend
+npm install
+npm run dev
+# → http://localhost:5173  (Vite redirige /api al backend en :8080)
+```
+
 ## Crear el usuario administrador
 ```powershell
 go run ./cmd/createadmin -email tu@email.com -name TuNombre
@@ -97,6 +109,8 @@ Todas las respuestas son JSON. Los errores tienen la forma `{"message": "..."}`.
 | GET | `/api/users` | admin | lista de usuarios |
 | POST | `/api/users` | admin | `{email, name, password}` → crea una cuenta normal |
 | PUT | `/api/users/:userID/password` | admin | `{new_password}` → pone una contraseña nueva y cierra sus sesiones |
+| DELETE | `/api/users/:userID` | admin | la **borra** si nunca ha hecho movimientos; si tiene historial la **desactiva** (no entra, pierde sus accesos, su nombre sigue en el historial). Responde `{"result": "deleted" \| "disabled"}` |
+| POST | `/api/users/:userID/enable` | admin | reactiva una cuenta desactivada (los accesos a trasteros se vuelven a dar a mano) |
 
 ### Proyectos
 | Método | Ruta | Quién | Qué hace |
@@ -105,6 +119,7 @@ Todas las respuestas son JSON. Los errores tienen la forma `{"message": "..."}`.
 | POST | `/api/projects` | admin | `{name, description}` → crea un proyecto |
 | GET | `/api/projects/:projectID` | miembro | detalle del proyecto |
 | PUT | `/api/projects/:projectID` | admin | `{name, description}` → edita el proyecto |
+| DELETE | `/api/projects/:projectID` | admin | borra el proyecto con todo lo que contiene (también los ficheros de las fotos) |
 | GET | `/api/projects/:projectID/members` | admin | miembros y sus roles |
 | PUT | `/api/projects/:projectID/members` | admin | `{email, role}` → añade un miembro o cambia su rol (`editor` / `viewer`) |
 | DELETE | `/api/projects/:projectID/members/:userID` | admin | quita el acceso |
@@ -155,12 +170,42 @@ orden, así que dos salidas múltiples simultáneas nunca se quedan esperándose
 
 Cada producto devuelve `photo_url` (su foto de portada, o `null`), lista para usar en `<img src>`.
 
+## Producción
+En producción hay **un solo servicio**: Go sirve la API (`/api/...`) y el frontend compilado
+(`frontend/dist`, indicado con `STATIC_DIR`). Todo sale del mismo dominio: sin CORS y la cookie
+de sesión funciona sin trucos. Además (`internal/web`):
+- **IP real detrás del proxy** (`X-Forwarded-For`): el límite de 5 logins/min es por usuario, no global.
+- **Cabeceras de seguridad:** CSP, `nosniff`, `X-Frame-Options`, `Referrer-Policy` y, en producción, HSTS.
+- **Caché:** `/assets/*` (con hash en el nombre) se guarda 1 año; `index.html` nunca.
+- **Apagado elegante:** al recibir SIGTERM (cada despliegue) termina las peticiones en curso antes de cerrar.
+
+| Variable | En producción | Para qué |
+|---|---|---|
+| `DATABASE_URL` | la de la BD en la nube | conexión a Postgres |
+| `APP_ENV` | `production` | cookie `Secure` + HSTS |
+| `PORT` | `8080` | puerto donde escucha |
+| `STATIC_DIR` | `/app/public` | carpeta del frontend compilado (vacío = no se sirve) |
+| `UPLOAD_DIR` | `/data/uploads` | fotos en disco (hasta pasar a almacenamiento de objetos) |
+| `GOOSE_DBSTRING` | igual que `DATABASE_URL` | para ejecutar las migraciones |
+
+### Probar la imagen de producción en local
+Con la BD de `docker compose` encendida, desde `Stockea/`:
+```powershell
+docker build -t stockea .
+
+# migraciones (fase "release": en producción se ejecuta antes de arrancar cada versión)
+docker run --rm --entrypoint /app/goose -e GOOSE_DBSTRING="postgres://stockea:stockea@host.docker.internal:5433/stockea?sslmode=disable" stockea up
+
+# la app (APP_ENV=development solo para poder entrar por http://localhost)
+docker run --rm -p 8080:8080 -e APP_ENV=development -e DATABASE_URL="postgres://stockea:stockea@host.docker.internal:5433/stockea?sslmode=disable" stockea
+# → http://localhost:8080
+```
+`host.docker.internal` es "el ordenador anfitrión" visto desde dentro de un contenedor.
+
 ## Próximos pasos
-1. ~~Login con sesiones en servidor y cookie HttpOnly~~ ✔
-2. ~~Permisos por proyecto (admin / editor / viewer)~~ ✔
-3. ~~Usuarios, proyectos y miembros~~ ✔
-4. ~~Categorías, ubicaciones, productos y movimientos~~ ✔
-5. ~~Salida múltiple, fotos, editar proyecto, contraseñas~~ ✔
-6. Frontend React
-7. Deploy (Fly.io / Railway) + GitHub Actions — y llevar las fotos a R2/S3 o a un volumen persistente
-8. Solicitudes: quien tiene "Solo ver" pide sacar o enviar cosas y el admin lo aprueba
+1. ~~Backend: sesiones, permisos, inventario, movimientos, fotos~~ ✔
+2. ~~Frontend React~~ ✔
+3. ~~Preparar producción: imagen Docker, frontend servido por Go, IP real, cabeceras de seguridad~~ ✔
+4. Deploy + GitHub Actions, con las fotos en almacenamiento de objetos
+5. App instalable (PWA)
+6. Solicitudes: quien tiene "Solo ver" pide sacar o enviar cosas y el admin lo aprueba

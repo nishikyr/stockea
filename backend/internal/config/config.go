@@ -13,6 +13,7 @@ type Config struct {
 	Port        string
 	Production  bool   // APP_ENV=production → cookies solo por HTTPS
 	UploadDir   string // carpeta donde se guardan las fotos
+	StaticDir   string // carpeta con el frontend compilado (frontend/dist); vacío = no se sirve
 }
 
 func Load() (Config, error) {
@@ -23,6 +24,7 @@ func Load() (Config, error) {
 		Port:        os.Getenv("PORT"),
 		Production:  os.Getenv("APP_ENV") == "production",
 		UploadDir:   os.Getenv("UPLOAD_DIR"),
+		StaticDir:   os.Getenv("STATIC_DIR"),
 	}
 	if cfg.UploadDir == "" {
 		cfg.UploadDir = "./uploads"

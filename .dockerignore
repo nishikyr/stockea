@@ -1,0 +1,8 @@
+# Lo que NO se envía a Docker al construir: más rápido y sin colar secretos en la imagen
+.git
+**/node_modules
+**/.env
+frontend/dist
+backend/bin
+backend/uploads
+**/*.log
