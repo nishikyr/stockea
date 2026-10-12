@@ -13,11 +13,12 @@ import (
 )
 
 type UserService struct {
-	q *db.Queries
+	pool TxStarter // para hacer el "borrar o desactivar" en una transacción
+	q    *db.Queries
 }
 
-func NewUserService(q *db.Queries) *UserService {
-	return &UserService{q: q}
+func NewUserService(pool TxStarter, q *db.Queries) *UserService {
+	return &UserService{pool: pool, q: q}
 }
 
 type CreateUserInput struct {
@@ -103,4 +104,74 @@ func (s *UserService) setPassword(ctx context.Context, userID pgtype.UUID, next,
 		return err
 	}
 	return s.q.DeleteUserSessionsExcept(ctx, db.DeleteUserSessionsExceptParams{UserID: userID, TokenHash: keepSessionHash})
+}
+
+// Qué ha pasado al "eliminar" una cuenta
+type DeleteUserResult string
+
+const (
+	UserDeleted  DeleteUserResult = "deleted"  // se ha borrado del todo
+	UserDisabled DeleteUserResult = "disabled" // tenía historial: se ha desactivado
+)
+
+// Delete "elimina" una cuenta (solo admin):
+//   - si nunca ha hecho movimientos → se BORRA (sus sesiones y accesos se van en cascada);
+//   - si tiene historial → se DESACTIVA: no puede entrar, se cierran sus sesiones y pierde el
+//     acceso a todos los trasteros, pero su nombre sigue en el historial. Se puede reactivar.
+//
+// Todo dentro de una transacción: o se hace entero o no se hace nada.
+func (s *UserService) Delete(ctx context.Context, actor db.User, userID pgtype.UUID) (DeleteUserResult, error) {
+	var result DeleteUserResult
+	err := withTx(ctx, s.pool, s.q, func(q *db.Queries) error {
+		user, err := q.GetUserByID(ctx, userID)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrUserIDNotFound
+		}
+		if err != nil {
+			return err
+		}
+		switch {
+		case user.ID == actor.ID:
+			return validation("no puedes eliminar tu propia cuenta")
+		case user.IsAdmin:
+			return validation("no se puede eliminar a un administrador")
+		}
+
+		movements, err := q.CountUserMovements(ctx, userID)
+		if err != nil {
+			return err
+		}
+		if movements == 0 {
+			if _, err := q.DeleteUser(ctx, userID); err != nil {
+				return err
+			}
+			result = UserDeleted
+			return nil
+		}
+
+		if err := q.DisableUser(ctx, userID); err != nil {
+			return err
+		}
+		// Un hash vacío = cerrar TODAS sus sesiones (si estaba conectada, la echamos al momento)
+		if err := q.DeleteUserSessionsExcept(ctx, db.DeleteUserSessionsExceptParams{UserID: userID, TokenHash: ""}); err != nil {
+			return err
+		}
+		if err := q.DeleteUserMemberships(ctx, userID); err != nil {
+			return err
+		}
+		result = UserDisabled
+		return nil
+	})
+	return result, err
+}
+
+// Enable reactiva una cuenta desactivada. Ojo: NO le devuelve el acceso a los trasteros;
+// eso se vuelve a dar desde cada trastero (así decides tú a cuáles).
+func (s *UserService) Enable(ctx context.Context, userID pgtype.UUID) error {
+	if _, err := s.q.GetUserByID(ctx, userID); errors.Is(err, pgx.ErrNoRows) {
+		return ErrUserIDNotFound
+	} else if err != nil {
+		return err
+	}
+	return s.q.EnableUser(ctx, userID)
 }

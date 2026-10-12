@@ -45,7 +45,7 @@ func main() {
 	}
 	defer pool.Close()
 
-	user, err := services.NewUserService(db.New(pool)).Create(ctx, services.CreateUserInput{
+	user, err := services.NewUserService(pool, db.New(pool)).Create(ctx, services.CreateUserInput{
 		Email:    *email,
 		Name:     *name,
 		Password: password,

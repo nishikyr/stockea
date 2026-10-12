@@ -182,6 +182,9 @@ func (s *ProjectService) SetMember(ctx context.Context, projectID pgtype.UUID, e
 	if user.IsAdmin {
 		return db.ListProjectMembersRow{}, validation("el administrador ya tiene acceso a todos los proyectos")
 	}
+	if user.DisabledAt.Valid {
+		return db.ListProjectMembersRow{}, ErrUserDisabled
+	}
 
 	err = s.q.UpsertProjectMember(ctx, db.UpsertProjectMemberParams{
 		ProjectID: projectID,

@@ -51,6 +51,8 @@ var (
 	ErrPhotoNotFound     = &Error{KindNotFound, "foto no encontrada"}
 	ErrUserIDNotFound    = &Error{KindNotFound, "usuario no encontrado"}
 	ErrWrongPassword     = &Error{KindValidation, "la contraseña actual no es correcta"}
+	ErrAccountDisabled   = &Error{KindForbidden, "esta cuenta está desactivada; pide al administrador que la reactive"}
+	ErrUserDisabled      = validation("esa cuenta está desactivada: reactívala primero en Cuentas")
 )
 
 // insufficientStock: el mensaje incluye cuánto queda, para que el usuario sepa qué pasa.

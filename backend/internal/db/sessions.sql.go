@@ -62,12 +62,12 @@ func (q *Queries) DeleteUserSessionsExcept(ctx context.Context, arg DeleteUserSe
 }
 
 const getUserBySessionToken = `-- name: GetUserBySessionToken :one
-SELECT u.id, u.email, u.password_hash, u.name, u.is_admin, u.created_at FROM users u
+SELECT u.id, u.email, u.password_hash, u.name, u.is_admin, u.created_at, u.disabled_at FROM users u
 JOIN sessions s ON s.user_id = u.id
-WHERE s.token_hash = $1 AND s.expires_at > now()
+WHERE s.token_hash = $1 AND s.expires_at > now() AND u.disabled_at IS NULL
 `
 
-// Devuelve el usuario dueño de una sesión que no haya caducado
+// Devuelve el usuario dueño de una sesión que no haya caducado (y cuya cuenta esté activa)
 func (q *Queries) GetUserBySessionToken(ctx context.Context, tokenHash string) (User, error) {
 	row := q.db.QueryRow(ctx, getUserBySessionToken, tokenHash)
 	var i User
@@ -78,6 +78,7 @@ func (q *Queries) GetUserBySessionToken(ctx context.Context, tokenHash string) (
 		&i.Name,
 		&i.IsAdmin,
 		&i.CreatedAt,
+		&i.DisabledAt,
 	)
 	return i, err
 }

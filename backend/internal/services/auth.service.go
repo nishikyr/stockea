@@ -41,6 +41,11 @@ func (s *AuthService) Login(ctx context.Context, email, password string) (string
 	if !auth.CheckPassword(user.PasswordHash, password) {
 		return "", db.User{}, ErrInvalidCredentials
 	}
+	// Solo después de comprobar la contraseña decimos que está desactivada:
+	// así alguien que no la sabe no puede averiguar qué cuentas existen.
+	if user.DisabledAt.Valid {
+		return "", db.User{}, ErrAccountDisabled
+	}
 
 	_ = s.q.DeleteExpiredSessions(ctx) // limpieza de paso; si falla no importa
 

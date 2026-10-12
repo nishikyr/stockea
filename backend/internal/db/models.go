@@ -173,4 +173,5 @@ type User struct {
 	Name         string             `json:"name"`
 	IsAdmin      bool               `json:"is_admin"`
 	CreatedAt    pgtype.Timestamptz `json:"created_at"`
+	DisabledAt   pgtype.Timestamptz `json:"disabled_at"`
 }

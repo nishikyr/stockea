@@ -14,3 +14,17 @@ SELECT * FROM users ORDER BY name;
 
 -- name: UpdateUserPassword :exec
 UPDATE users SET password_hash = $2 WHERE id = $1;
+
+-- ¿Ha hecho algún movimiento? (si los tiene, no se puede borrar: se desactiva)
+-- name: CountUserMovements :one
+SELECT count(*) FROM movements WHERE user_id = $1;
+
+-- Borra la cuenta. Sus sesiones y accesos a proyectos se van en cascada.
+-- name: DeleteUser :execrows
+DELETE FROM users WHERE id = $1;
+
+-- name: DisableUser :exec
+UPDATE users SET disabled_at = now() WHERE id = $1;
+
+-- name: EnableUser :exec
+UPDATE users SET disabled_at = NULL WHERE id = $1;

@@ -37,7 +37,7 @@ func main() {
 	// Capa de datos → services → handlers
 	queries := db.New(pool)
 	authService := services.NewAuthService(queries)
-	userService := services.NewUserService(queries)
+	userService := services.NewUserService(pool, queries)
 	projectService := services.NewProjectService(queries, store)
 	categoryService := services.NewCategoryService(queries)
 	locationService := services.NewLocationService(queries)

@@ -65,3 +65,7 @@ WHERE p.project_id = $1;
 -- fotos y movimientos (ver los ON DELETE CASCADE de la migración 00001).
 -- name: DeleteProject :execrows
 DELETE FROM projects WHERE id = $1;
+
+-- Quita a un usuario de TODOS los proyectos (al desactivar su cuenta)
+-- name: DeleteUserMemberships :exec
+DELETE FROM project_members WHERE user_id = $1;

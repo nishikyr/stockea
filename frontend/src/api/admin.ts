@@ -82,6 +82,34 @@ export function useResetPassword() {
   })
 }
 
+// "Eliminar" una cuenta: el backend la BORRA si nunca ha movido nada, o la DESACTIVA si tiene
+// historial (para no perder quién hizo cada movimiento). Nos dice cuál de las dos ha hecho.
+export type DeleteUserResult = 'deleted' | 'disabled'
+
+export function useDeleteUser() {
+  const queryClient = useQueryClient()
+  const invalidateProjects = useInvalidateProjects() // también pierde sus accesos a los trasteros
+  return useMutation({
+    mutationFn: (userId: string) =>
+      api<{ result: DeleteUserResult }>(`/users/${userId}`, { method: 'DELETE' }).then((r) => r.result),
+    // Sin esperar al refresco (sin return): si esperásemos, la fila de esa persona desaparecería de la lista
+    // ANTES de que la pantalla pudiera enseñar "Cuenta eliminada" (mismo truco que al borrar un producto).
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: adminKeys.users })
+      void invalidateProjects()
+    },
+  })
+}
+
+// Reactivar: puede volver a entrar, pero el acceso a cada trastero se vuelve a dar a mano
+export function useEnableUser() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (userId: string) => api<void>(`/users/${userId}/enable`, { method: 'POST' }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: adminKeys.users }),
+  })
+}
+
 // --- Tu propia contraseña (cualquier usuario) -----------------------------------------
 
 export function useChangeOwnPassword() {

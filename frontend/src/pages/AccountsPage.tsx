@@ -1,7 +1,7 @@
-import { ChevronLeft, KeyRound, UserPlus } from 'lucide-react'
+import { ChevronLeft, KeyRound, RotateCcw, Trash2, UserPlus } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router'
-import { useCreateUser, useResetPassword, useUsers } from '../api/admin'
+import { useCreateUser, useDeleteUser, useEnableUser, useResetPassword, useUsers, type DeleteUserResult } from '../api/admin'
 import { useAuth } from '../auth/useAuth'
 import { CredentialsCard } from '../components/admin/CredentialsCard'
 import { PasswordInput } from '../components/admin/PasswordInput'
@@ -22,6 +22,13 @@ export function AccountsPage() {
   const users = useUsers()
   const [creating, setCreating] = useState(false)
   const [shown, setShown] = useState<Shown | null>(null) // datos a enseñar tras crear/resetear
+  const [notice, setNotice] = useState('') // "Cuenta de Pepe eliminada.", etc.
+
+  function onDeleted(name: string, result: DeleteUserResult) {
+    setNotice(result === 'deleted'
+      ? `Cuenta de ${name} eliminada.`
+      : `${name} tenía movimientos en el historial, así que su cuenta se ha desactivado en vez de borrarse: ya no puede entrar y ha perdido el acceso a los trasteros.`)
+  }
 
   return (
     <main className="mx-auto flex min-h-dvh max-w-md flex-col gap-5 px-5 pt-4 pb-12">
@@ -47,6 +54,7 @@ export function AccountsPage() {
           </p>
 
           {shown && <CredentialsCard {...shown} onDone={() => setShown(null)} />}
+          {notice && <p role="status" className="rounded-2xl bg-in-soft px-4 py-3 font-semibold text-in">{notice}</p>}
           {creating && (
             <NewUserForm onCancel={() => setCreating(false)}
               onCreated={(s) => { setCreating(false); setShown(s) }} />
@@ -56,7 +64,8 @@ export function AccountsPage() {
           {users.error && <ErrorMessage message={users.error.message} />}
           <ul className="flex flex-col gap-3">
             {users.data?.map((u) => (
-              <UserRow key={u.id} account={u} isMe={u.id === user.id} onReset={setShown} />
+              <UserRow key={u.id} account={u} isMe={u.id === user.id} onReset={(c) => { setNotice(''); setShown(c) }}
+                onDeleted={onDeleted} onEnabled={(name) => setNotice(`${name} puede volver a entrar. Dale acceso a los trasteros que quieras desde «Gestionar».`)} />
             ))}
           </ul>
         </>
@@ -94,10 +103,22 @@ function NewUserForm({ onCancel, onCreated }: { onCancel: () => void; onCreated:
   )
 }
 
-function UserRow({ account, isMe, onReset }: { account: User; isMe: boolean; onReset: (s: Shown) => void }) {
+type UserRowProps = {
+  account: User
+  isMe: boolean
+  onReset: (s: Shown) => void
+  onDeleted: (name: string, result: DeleteUserResult) => void
+  onEnabled: (name: string) => void
+}
+
+function UserRow({ account, isMe, onReset, onDeleted, onEnabled }: UserRowProps) {
   const [resetting, setResetting] = useState(false)
   const [password, setPassword] = useState('')
   const mutation = useResetPassword()
+  const remove = useDeleteUser()
+  const enable = useEnableUser()
+  const [confirming, setConfirming] = useState(false)
+  const canRemove = !isMe && !account.is_admin
 
   function startReset() {
     setPassword(generatePassword())
@@ -115,7 +136,7 @@ function UserRow({ account, isMe, onReset }: { account: User; isMe: boolean; onR
   }
 
   return (
-    <li className="flex flex-col gap-3 rounded-[20px] bg-cream p-4">
+    <li className={`flex flex-col gap-3 rounded-[20px] p-4 ${account.disabled ? 'bg-sand ring-1 ring-line' : 'bg-cream'}`}>
       <div className="flex items-center gap-3">
         <span className="flex size-11 flex-none items-center justify-center rounded-full bg-brand-soft font-display
           text-lg font-bold text-brand-dark" aria-hidden="true">
@@ -126,15 +147,51 @@ function UserRow({ account, isMe, onReset }: { account: User; isMe: boolean; onR
           <p className="truncate text-sm text-muted">{account.email}</p>
         </div>
         {account.is_admin && <Badge tone="dark">Admin</Badge>}
+        {account.disabled && <Badge tone="warn">Desactivada</Badge>}
       </div>
 
-      {/* Tu propia contraseña se cambia en Ajustes (pidiendo la actual), no aquí */}
-      {!isMe && !resetting && (
-        <button type="button" onClick={startReset}
-          className="flex min-h-11 items-center gap-2 self-start font-semibold text-brand">
-          <KeyRound size={18} aria-hidden="true" /> Poner contraseña nueva
+      {account.disabled && (
+        <button type="button" disabled={enable.isPending}
+          onClick={() => enable.mutate(account.id, { onSuccess: () => onEnabled(account.name) })}
+          className="flex min-h-11 items-center gap-2 self-start font-semibold text-brand disabled:opacity-50">
+          <RotateCcw size={18} aria-hidden="true" /> {enable.isPending ? 'Reactivando…' : 'Reactivar cuenta'}
         </button>
       )}
+
+      {/* Tu propia contraseña se cambia en Ajustes (pidiendo la actual), no aquí */}
+      {!isMe && !resetting && !confirming && !account.disabled && (
+        <div className="flex flex-wrap gap-x-4">
+          <button type="button" onClick={startReset}
+            className="flex min-h-11 items-center gap-2 font-semibold text-brand">
+            <KeyRound size={18} aria-hidden="true" /> Poner contraseña nueva
+          </button>
+          {canRemove && (
+            <button type="button" onClick={() => setConfirming(true)} aria-label={`Eliminar la cuenta de ${account.name}`}
+              className="flex min-h-11 items-center gap-2 font-semibold text-out">
+              <Trash2 size={18} aria-hidden="true" /> Eliminar
+            </button>
+          )}
+        </div>
+      )}
+
+      {confirming && (
+        <div className="flex flex-col gap-2 rounded-2xl bg-out-soft p-3">
+          <p className="font-medium text-out">
+            ¿Eliminar la cuenta de {account.name}? Si ya ha sacado o guardado cosas, no se borrará: se desactivará
+            para que el historial siga diciendo quién lo hizo.
+          </p>
+          {remove.error && <p role="alert" className="font-medium text-out">{remove.error.message}</p>}
+          <div className="flex gap-2">
+            <Button type="button" variant="secondary" onClick={() => setConfirming(false)}>No</Button>
+            <button type="button" disabled={remove.isPending}
+              onClick={() => remove.mutate(account.id, { onSuccess: (result) => { setConfirming(false); onDeleted(account.name, result) } })}
+              className="min-h-12 flex-1 rounded-2xl bg-out px-4 font-bold text-white disabled:opacity-50">
+              {remove.isPending ? 'Eliminando…' : 'Sí, eliminar'}
+            </button>
+          </div>
+        </div>
+      )}
+      {enable.error && <p role="alert" className="font-medium text-out">{enable.error.message}</p>}
       {resetting && (
         <form onSubmit={submit} className="flex flex-col gap-3">
           <PasswordInput label={`Contraseña nueva para ${account.name}`} value={password} onChange={setPassword} />

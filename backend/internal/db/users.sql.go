@@ -11,10 +11,22 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const countUserMovements = `-- name: CountUserMovements :one
+SELECT count(*) FROM movements WHERE user_id = $1
+`
+
+// ¿Ha hecho algún movimiento? (si los tiene, no se puede borrar: se desactiva)
+func (q *Queries) CountUserMovements(ctx context.Context, userID pgtype.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countUserMovements, userID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createUser = `-- name: CreateUser :one
 INSERT INTO users (email, password_hash, name, is_admin)
 VALUES (lower($1), $2, $3, $4)
-RETURNING id, email, password_hash, name, is_admin, created_at
+RETURNING id, email, password_hash, name, is_admin, created_at, disabled_at
 `
 
 type CreateUserParams struct {
@@ -39,12 +51,44 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		&i.Name,
 		&i.IsAdmin,
 		&i.CreatedAt,
+		&i.DisabledAt,
 	)
 	return i, err
 }
 
+const deleteUser = `-- name: DeleteUser :execrows
+DELETE FROM users WHERE id = $1
+`
+
+// Borra la cuenta. Sus sesiones y accesos a proyectos se van en cascada.
+func (q *Queries) DeleteUser(ctx context.Context, id pgtype.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteUser, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const disableUser = `-- name: DisableUser :exec
+UPDATE users SET disabled_at = now() WHERE id = $1
+`
+
+func (q *Queries) DisableUser(ctx context.Context, id pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, disableUser, id)
+	return err
+}
+
+const enableUser = `-- name: EnableUser :exec
+UPDATE users SET disabled_at = NULL WHERE id = $1
+`
+
+func (q *Queries) EnableUser(ctx context.Context, id pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, enableUser, id)
+	return err
+}
+
 const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT id, email, password_hash, name, is_admin, created_at FROM users WHERE email = lower($1)
+SELECT id, email, password_hash, name, is_admin, created_at, disabled_at FROM users WHERE email = lower($1)
 `
 
 func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error) {
@@ -57,12 +101,13 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error
 		&i.Name,
 		&i.IsAdmin,
 		&i.CreatedAt,
+		&i.DisabledAt,
 	)
 	return i, err
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT id, email, password_hash, name, is_admin, created_at FROM users WHERE id = $1
+SELECT id, email, password_hash, name, is_admin, created_at, disabled_at FROM users WHERE id = $1
 `
 
 func (q *Queries) GetUserByID(ctx context.Context, id pgtype.UUID) (User, error) {
@@ -75,12 +120,13 @@ func (q *Queries) GetUserByID(ctx context.Context, id pgtype.UUID) (User, error)
 		&i.Name,
 		&i.IsAdmin,
 		&i.CreatedAt,
+		&i.DisabledAt,
 	)
 	return i, err
 }
 
 const listUsers = `-- name: ListUsers :many
-SELECT id, email, password_hash, name, is_admin, created_at FROM users ORDER BY name
+SELECT id, email, password_hash, name, is_admin, created_at, disabled_at FROM users ORDER BY name
 `
 
 func (q *Queries) ListUsers(ctx context.Context) ([]User, error) {
@@ -99,6 +145,7 @@ func (q *Queries) ListUsers(ctx context.Context) ([]User, error) {
 			&i.Name,
 			&i.IsAdmin,
 			&i.CreatedAt,
+			&i.DisabledAt,
 		); err != nil {
 			return nil, err
 		}

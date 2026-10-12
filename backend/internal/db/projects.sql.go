@@ -68,6 +68,16 @@ func (q *Queries) DeleteProjectMember(ctx context.Context, arg DeleteProjectMemb
 	return result.RowsAffected(), nil
 }
 
+const deleteUserMemberships = `-- name: DeleteUserMemberships :exec
+DELETE FROM project_members WHERE user_id = $1
+`
+
+// Quita a un usuario de TODOS los proyectos (al desactivar su cuenta)
+func (q *Queries) DeleteUserMemberships(ctx context.Context, userID pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, deleteUserMemberships, userID)
+	return err
+}
+
 const getProject = `-- name: GetProject :one
 SELECT id, name, description, created_by, created_at FROM projects WHERE id = $1
 `

@@ -14,17 +14,19 @@ type ChangePasswordRequest struct {
 
 // UserResponse es lo que la API devuelve de un usuario (¡nunca el password_hash!).
 type UserResponse struct {
-	ID      string `json:"id"`
-	Email   string `json:"email"`
-	Name    string `json:"name"`
-	IsAdmin bool   `json:"is_admin"`
+	ID       string `json:"id"`
+	Email    string `json:"email"`
+	Name     string `json:"name"`
+	IsAdmin  bool   `json:"is_admin"`
+	Disabled bool   `json:"disabled"` // cuenta desactivada (no puede entrar)
 }
 
 func NewUserResponse(u db.User) UserResponse {
 	return UserResponse{
-		ID:      UUIDString(u.ID),
-		Email:   u.Email,
-		Name:    u.Name,
-		IsAdmin: u.IsAdmin,
+		ID:       UUIDString(u.ID),
+		Email:    u.Email,
+		Name:     u.Name,
+		IsAdmin:  u.IsAdmin,
+		Disabled: u.DisabledAt.Valid,
 	}
 }

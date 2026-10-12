@@ -5,6 +5,7 @@ export type User = {
   email: string
   name: string
   is_admin: boolean
+  disabled: boolean // cuenta desactivada: no puede entrar (se conserva por su historial)
 }
 
 // Tu rol en un proyecto. "admin" = administrador global (puede con todo).

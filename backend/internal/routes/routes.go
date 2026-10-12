@@ -54,6 +54,8 @@ func Register(e *echo.Echo, d Deps) {
 	users.GET("", d.Users.List)
 	users.POST("", d.Users.Create)
 	users.PUT("/:userID/password", d.Users.ResetPassword)
+	users.DELETE("/:userID", d.Users.Delete)
+	users.POST("/:userID/enable", d.Users.Enable)
 
 	// ── Proyectos ──
 	projects := api.Group("/projects", requireAuth)

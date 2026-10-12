@@ -6,6 +6,7 @@ import (
 	"github.com/labstack/echo/v4"
 
 	"github.com/nishikyr/stockea/internal/dto"
+	"github.com/nishikyr/stockea/internal/middleware"
 	"github.com/nishikyr/stockea/internal/services"
 )
 
@@ -54,6 +55,32 @@ func (h *UserHandler) ResetPassword(c echo.Context) error {
 		return services.ErrInvalidRequest
 	}
 	if err := h.Users.ResetPassword(c.Request().Context(), userID, req.NewPassword); err != nil {
+		return err
+	}
+	return c.NoContent(http.StatusNoContent)
+}
+
+// DELETE /api/users/:userID — (admin) borra la cuenta, o la desactiva si tiene historial.
+// Responde {"result": "deleted"} o {"result": "disabled"} para que la app sepa qué decir.
+func (h *UserHandler) Delete(c echo.Context) error {
+	userID, err := pathUUID(c, "userID", services.ErrUserIDNotFound)
+	if err != nil {
+		return err
+	}
+	result, err := h.Users.Delete(c.Request().Context(), middleware.CurrentUser(c), userID)
+	if err != nil {
+		return err
+	}
+	return c.JSON(http.StatusOK, map[string]string{"result": string(result)})
+}
+
+// POST /api/users/:userID/enable — (admin) reactiva una cuenta desactivada
+func (h *UserHandler) Enable(c echo.Context) error {
+	userID, err := pathUUID(c, "userID", services.ErrUserIDNotFound)
+	if err != nil {
+		return err
+	}
+	if err := h.Users.Enable(c.Request().Context(), userID); err != nil {
 		return err
 	}
 	return c.NoContent(http.StatusNoContent)
