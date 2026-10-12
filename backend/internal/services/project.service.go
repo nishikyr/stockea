@@ -9,6 +9,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/nishikyr/stockea/internal/db"
+	"github.com/nishikyr/stockea/internal/storage"
 )
 
 // Roles de un usuario respecto a un proyecto, de menos a más permisos.
@@ -27,11 +28,35 @@ func RoleAtLeast(role, min string) bool {
 }
 
 type ProjectService struct {
-	q *db.Queries
+	q     *db.Queries
+	store storage.Storage // para borrar las fotos de todos sus productos al borrar el proyecto
 }
 
-func NewProjectService(q *db.Queries) *ProjectService {
-	return &ProjectService{q: q}
+func NewProjectService(q *db.Queries, store storage.Storage) *ProjectService {
+	return &ProjectService{q: q, store: store}
+}
+
+// Delete borra el proyecto con TODO lo que contiene: miembros, categorías, ubicaciones,
+// productos, movimientos y fotos (la BD lo hace en cascada) y además los ficheros de las fotos.
+func (s *ProjectService) Delete(ctx context.Context, id pgtype.UUID) error {
+	// 1) Apuntamos los ficheros ANTES de borrar: después las filas ya no existen
+	keys, err := s.q.ListProjectPhotoKeys(ctx, id)
+	if err != nil {
+		return err
+	}
+	// 2) Borramos el proyecto (y todo lo que cuelga de él)
+	n, err := s.q.DeleteProject(ctx, id)
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return ErrProjectNotFound
+	}
+	// 3) Borramos los ficheros. Si alguno falla solo queda un fichero huérfano: no rompemos nada.
+	for _, key := range keys {
+		_ = s.store.Delete(ctx, key)
+	}
+	return nil
 }
 
 // ProjectWithRole es un proyecto junto con el rol del usuario que lo consulta

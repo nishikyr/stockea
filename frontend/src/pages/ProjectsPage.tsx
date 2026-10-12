@@ -4,12 +4,14 @@ import { Link } from 'react-router'
 import { useProjects } from '../api/projects'
 import { useAuth } from '../auth/useAuth'
 import { AppHeader } from '../components/AppHeader'
+import { Flash } from '../components/Flash'
 import { AdminProjectCard } from '../components/projects/AdminProjectCard'
 import { NewProjectForm } from '../components/projects/NewProjectForm'
 import { ProjectCard } from '../components/projects/ProjectCard'
 import { EmptyState, ErrorMessage, Loading } from '../components/StatusMessage'
 import { Button } from '../components/ui/Button'
 import { firstName } from '../lib/format'
+import { useRouteFlash } from '../lib/useRouteFlash'
 
 // La primera pantalla tras el login. Dos versiones según quién entra:
 // - admin: todos los proyectos, contadores y botón para crear
@@ -17,10 +19,12 @@ import { firstName } from '../lib/format'
 export function ProjectsPage() {
   const { user } = useAuth()
   const isAdmin = user?.is_admin ?? false
+  const { flash, tone, hide } = useRouteFlash() // p. ej. "«Pruebas» eliminado."
 
   return (
     <main className="mx-auto flex min-h-dvh max-w-md flex-col gap-6 px-5 pt-6 pb-10">
       <AppHeader />
+      {flash && <Flash message={flash} tone={tone} onHide={hide} />}
       {isAdmin ? <AdminProjects /> : <MemberProjects name={firstName(user?.name ?? '')} />}
     </main>
   )

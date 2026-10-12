@@ -3,6 +3,7 @@ import { Navigate, Route, Routes } from 'react-router'
 import { RequireAuth } from './auth/RequireAuth'
 import { AccountsPage } from './pages/AccountsPage'
 import { BatchExitPage } from './pages/BatchExitPage'
+import { CatalogPage } from './pages/CatalogPage'
 import { LoginPage } from './pages/LoginPage'
 import { ProductFormPage } from './pages/ProductFormPage'
 import { ProductPage } from './pages/ProductPage'
@@ -31,6 +32,7 @@ export default function App() {
       <Route path="/projects/:projectId/products/new" element={<Protected><ProductFormPage /></Protected>} />
       <Route path="/projects/:projectId/products/:productId/edit" element={<Protected><ProductFormPage /></Protected>} />
       <Route path="/projects/:projectId/members" element={<Protected><ProjectAdminPage /></Protected>} />
+      <Route path="/projects/:projectId/catalog" element={<Protected><CatalogPage /></Protected>} />
       <Route path="/accounts" element={<Protected><AccountsPage /></Protected>} />
       <Route path="/projects/:projectId/exit" element={<Protected><BatchExitPage /></Protected>} />
 

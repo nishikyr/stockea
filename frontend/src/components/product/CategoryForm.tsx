@@ -1,36 +1,46 @@
 import { useState, type KeyboardEvent } from 'react'
-import { useCreateCategory } from '../../api/inventory'
+import { useCreateCategory, useUpdateCategory } from '../../api/inventory'
 import { categoryColors, categoryTint, iconChoices } from '../../lib/categoryStyle'
+import type { Category } from '../../types/api'
 import { CategoryIcon } from '../inventory/CategoryIcon'
 import { Button } from '../ui/Button'
 import { Input } from '../ui/Input'
 
-type Props = { projectId: string; onCreated: (id: string) => void; onCancel: () => void }
+type Props = {
+  projectId: string
+  category?: Category // si viene, EDITAMOS esa categoría; si no, creamos una nueva
+  onSaved: (id: string) => void
+  onCancel: () => void
+}
 
-// Mini-formulario para crear una categoría sin salir del formulario del producto.
-// OJO: NO es un <form>. Un <form> dentro de otro <form> no está permitido en HTML,
-// así que usamos un <div> y gestionamos el Enter a mano.
-export function NewCategoryForm({ projectId, onCreated, onCancel }: Props) {
-  const [name, setName] = useState('')
-  const [color, setColor] = useState(categoryColors[0])
-  const [icon, setIcon] = useState('box')
-  const mutation = useCreateCategory(projectId)
+// Crear o editar una categoría. OJO: NO es un <form>. Se usa también dentro del formulario de
+// producto, y un <form> dentro de otro <form> no está permitido en HTML: gestionamos el Enter a mano.
+export function CategoryForm({ projectId, category, onSaved, onCancel }: Props) {
+  const [name, setName] = useState(category?.name ?? '')
+  const [color, setColor] = useState(category?.color ?? categoryColors[0])
+  const [icon, setIcon] = useState(category?.icon || 'box')
+  const create = useCreateCategory(projectId)
+  const update = useUpdateCategory(projectId)
+  const mutation = category ? update : create
 
-  function create() {
+  function save() {
     if (!name.trim()) return
-    mutation.mutate({ name: name.trim(), color, icon }, { onSuccess: (c) => onCreated(c.id) })
+    const input = { name: name.trim(), color, icon }
+    if (category) update.mutate({ id: category.id, ...input }, { onSuccess: (c) => onSaved(c.id) })
+    else create.mutate(input, { onSuccess: (c) => onSaved(c.id) })
   }
 
-  // Enter en el nombre crea la categoría (y no envía el formulario del producto)
+  // Enter en el nombre guarda la categoría (y no envía el formulario del producto)
   function onKeyDown(e: KeyboardEvent<HTMLInputElement>) {
     if (e.key === 'Enter') {
       e.preventDefault()
-      create()
+      save()
     }
   }
 
   return (
-    <div role="group" aria-label="Nueva categoría" className="flex flex-col gap-4 rounded-3xl bg-cream p-4">
+    <div role="group" aria-label={category ? `Editar ${category.name}` : 'Nueva categoría'}
+      className="flex flex-col gap-4 rounded-3xl bg-cream p-4">
       <Input label="Nombre de la categoría" value={name} maxLength={60} onKeyDown={onKeyDown}
         onChange={(e) => setName(e.target.value)} placeholder="Ej.: Herramientas" />
 
@@ -62,8 +72,8 @@ export function NewCategoryForm({ projectId, onCreated, onCancel }: Props) {
       {mutation.error && <p role="alert" className="font-medium text-out">{mutation.error.message}</p>}
       <div className="flex gap-2">
         <Button type="button" variant="ghost" onClick={onCancel}>Cancelar</Button>
-        <Button type="button" className="flex-1" onClick={create} disabled={!name.trim() || mutation.isPending}>
-          {mutation.isPending ? 'Creando…' : 'Crear categoría'}
+        <Button type="button" className="flex-1" onClick={save} disabled={!name.trim() || mutation.isPending}>
+          {mutation.isPending ? 'Guardando…' : category ? 'Guardar' : 'Crear categoría'}
         </Button>
       </div>
     </div>

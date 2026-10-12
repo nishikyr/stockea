@@ -21,6 +21,18 @@ export function useUpdateProject(projectId: string) {
   })
 }
 
+// Borra el trastero con TODO dentro. Igual que al borrar un producto, NO esperamos al refresco:
+// primero navegamos fuera (si no, se volvería a pedir el proyecto borrado → 404 en pantalla).
+export function useDeleteProject(projectId: string) {
+  const invalidate = useInvalidateProjects()
+  return useMutation({
+    mutationFn: () => api<void>(`/projects/${projectId}`, { method: 'DELETE' }),
+    onSuccess: () => {
+      void invalidate()
+    },
+  })
+}
+
 export function useMembers(projectId: string, { enabled = true } = {}) {
   return useQuery({
     queryKey: adminKeys.members(projectId),

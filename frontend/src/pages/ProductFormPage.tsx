@@ -8,8 +8,8 @@ import {
 } from '../api/inventory'
 import { useInvalidateProjects } from '../api/invalidate'
 import { useProject } from '../api/projects'
-import { NewCategoryForm } from '../components/product/NewCategoryForm'
-import { NewLocationForm } from '../components/product/NewLocationForm'
+import { CategoryForm } from '../components/product/CategoryForm'
+import { LocationForm } from '../components/product/LocationForm'
 import { PhotoPicker, type PendingPhoto } from '../components/product/PhotoPicker'
 import { ErrorMessage, Loading } from '../components/StatusMessage'
 import { Button } from '../components/ui/Button'
@@ -232,8 +232,8 @@ function ProductForm({ projectId, product }: FormProps) {
         {categories.data?.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
       </Select>
       {newCategory && (
-        <NewCategoryForm projectId={projectId} onCancel={() => setNewCategory(false)}
-          onCreated={(id) => { setCategoryId(id); setNewCategory(false) }} />
+        <CategoryForm projectId={projectId} onCancel={() => setNewCategory(false)}
+          onSaved={(id) => { setCategoryId(id); setNewCategory(false) }} />
       )}
 
       <Select label="¿Dónde está?" value={locationId} onChange={(e) => setLocationId(e.target.value)}
@@ -242,8 +242,8 @@ function ProductForm({ projectId, product }: FormProps) {
         {locOptions.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
       </Select>
       {newLocation && (
-        <NewLocationForm projectId={projectId} options={locOptions} onCancel={() => setNewLocation(false)}
-          onCreated={(id) => { setLocationId(id); setNewLocation(false) }} />
+        <LocationForm projectId={projectId} locations={locations.data ?? []} onCancel={() => setNewLocation(false)}
+          onSaved={(id) => { setLocationId(id); setNewLocation(false) }} />
       )}
 
       {product ? (

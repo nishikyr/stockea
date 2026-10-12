@@ -58,6 +58,14 @@ func (h *ProjectHandler) Update(c echo.Context) error {
 	return c.JSON(http.StatusOK, dto.NewProjectResponse(project, middleware.ProjectRole(c)))
 }
 
+// DELETE /api/projects/:projectID — (admin) borra el proyecto con todo su contenido
+func (h *ProjectHandler) Delete(c echo.Context) error {
+	if err := h.Projects.Delete(c.Request().Context(), middleware.ProjectID(c)); err != nil {
+		return err
+	}
+	return c.NoContent(http.StatusNoContent)
+}
+
 // GET /api/projects/:projectID/members — (admin)
 func (h *ProjectHandler) ListMembers(c echo.Context) error {
 	members, err := h.Projects.ListMembers(c.Request().Context(), middleware.ProjectID(c))

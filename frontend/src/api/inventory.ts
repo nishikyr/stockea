@@ -58,13 +58,49 @@ export function useCreateCategory(projectId: string) {
   })
 }
 
-export type NewLocation = { name: string; parent_id: string | null }
+export function useUpdateCategory(projectId: string) {
+  const invalidate = useInvalidateProjects()
+  return useMutation({
+    mutationFn: ({ id, ...input }: NewCategory & { id: string }) =>
+      api<Category>(`/projects/${projectId}/categories/${id}`, { method: 'PUT', body: input }),
+    onSuccess: invalidate,
+  })
+}
+
+// Borrar una categoría NO borra sus productos: se quedan "Sin categoría" (ON DELETE SET NULL)
+export function useDeleteCategory(projectId: string) {
+  const invalidate = useInvalidateProjects()
+  return useMutation({
+    mutationFn: (id: string) => api<void>(`/projects/${projectId}/categories/${id}`, { method: 'DELETE' }),
+    onSuccess: invalidate,
+  })
+}
+
+export type NewLocation = { name: string; description?: string; parent_id: string | null }
 
 export function useCreateLocation(projectId: string) {
   const invalidate = useInvalidateProjects()
   return useMutation({
     mutationFn: (input: NewLocation) =>
       api<Location>(`/projects/${projectId}/locations`, { method: 'POST', body: input }),
+    onSuccess: invalidate,
+  })
+}
+
+export function useUpdateLocation(projectId: string) {
+  const invalidate = useInvalidateProjects()
+  return useMutation({
+    mutationFn: ({ id, ...input }: NewLocation & { id: string }) =>
+      api<Location>(`/projects/${projectId}/locations/${id}`, { method: 'PUT', body: input }),
+    onSuccess: invalidate,
+  })
+}
+
+// Borrar una ubicación: sus productos quedan "Sin ubicación" y lo que había dentro pasa a estar suelto
+export function useDeleteLocation(projectId: string) {
+  const invalidate = useInvalidateProjects()
+  return useMutation({
+    mutationFn: (id: string) => api<void>(`/projects/${projectId}/locations/${id}`, { method: 'DELETE' }),
     onSuccess: invalidate,
   })
 }

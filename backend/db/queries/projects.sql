@@ -52,3 +52,16 @@ ORDER BY u.name;
 -- name: DeleteProjectMember :execrows
 DELETE FROM project_members
 WHERE project_id = $1 AND user_id = $2;
+
+-- Claves de los ficheros de TODAS las fotos de un proyecto. Las pedimos ANTES de borrarlo:
+-- la BD borra las filas en cascada, pero los ficheros del disco/nube hay que borrarlos desde Go.
+-- name: ListProjectPhotoKeys :many
+SELECT ph.storage_key
+FROM product_photos ph
+JOIN products p ON p.id = ph.product_id
+WHERE p.project_id = $1;
+
+-- Borra el proyecto y, en cascada, sus miembros, categorías, ubicaciones, productos,
+-- fotos y movimientos (ver los ON DELETE CASCADE de la migración 00001).
+-- name: DeleteProject :execrows
+DELETE FROM projects WHERE id = $1;

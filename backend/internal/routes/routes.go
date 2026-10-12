@@ -63,6 +63,7 @@ func Register(e *echo.Echo, d Deps) {
 	project := projects.Group("/:projectID")
 	project.GET("", d.Projects.Get, viewer)
 	project.PUT("", d.Projects.Update, admin)
+	project.DELETE("", d.Projects.Delete, admin)
 
 	members := project.Group("/members", admin)
 	members.GET("", d.Projects.ListMembers)

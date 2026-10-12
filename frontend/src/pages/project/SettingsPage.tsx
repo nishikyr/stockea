@@ -1,4 +1,4 @@
-import { KeyRound, LogOut, Users, Warehouse } from 'lucide-react'
+import { KeyRound, LogOut, Shapes, Users, Warehouse } from 'lucide-react'
 import { useState } from 'react'
 import { Link } from 'react-router'
 import { useCurrentProject } from '../../api/projects'
@@ -40,6 +40,13 @@ export function SettingsPage() {
             : 'Puedes añadir productos, fotos y registrar lo que entra y sale.'}
         </p>
       </section>
+
+      {project.role !== 'viewer' && (
+        <Link to={`/projects/${project.id}/catalog`}
+          className="flex min-h-12 items-center gap-3 rounded-2xl bg-cream px-5 font-semibold text-ink">
+          <Shapes size={20} aria-hidden="true" /> Categorías y ubicaciones
+        </Link>
+      )}
 
       {user.is_admin && (
         <Link to={`/projects/${project.id}/members`}

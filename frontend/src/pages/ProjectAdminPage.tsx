@@ -1,8 +1,9 @@
 import { ChevronLeft } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router'
 import { useMembers } from '../api/admin'
-import { useProject } from '../api/projects'
+import { useProject, useProjects } from '../api/projects'
 import { useAuth } from '../auth/useAuth'
+import { DeleteProject } from '../components/admin/DeleteProject'
 import { GrantAccessForm } from '../components/admin/GrantAccessForm'
 import { MemberRow } from '../components/admin/MemberRow'
 import { ProjectInfoForm } from '../components/admin/ProjectInfoForm'
@@ -18,6 +19,8 @@ export function ProjectAdminPage() {
   const project = useProject(projectId)
   // enabled: si no eres admin ni lo pedimos (el backend diría 403 igualmente)
   const members = useMembers(projectId, { enabled: isAdmin })
+  // El nº de productos para el aviso de borrado sale de la lista de proyectos (ya suele estar en caché)
+  const summary = useProjects().data?.find((p) => p.id === projectId)
 
   const back = (
     <button type="button" onClick={() => navigate(-1)}
@@ -76,6 +79,8 @@ export function ProjectAdminPage() {
           </section>
 
           <GrantAccessForm projectId={projectId} />
+
+          <DeleteProject project={project.data} productCount={summary?.product_count} />
         </>
       )}
     </main>

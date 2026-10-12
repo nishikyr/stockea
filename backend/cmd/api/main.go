@@ -38,7 +38,7 @@ func main() {
 	queries := db.New(pool)
 	authService := services.NewAuthService(queries)
 	userService := services.NewUserService(queries)
-	projectService := services.NewProjectService(queries)
+	projectService := services.NewProjectService(queries, store)
 	categoryService := services.NewCategoryService(queries)
 	locationService := services.NewLocationService(queries)
 	productService := services.NewProductService(pool, queries, store)

@@ -36,6 +36,20 @@ func (q *Queries) CreateProject(ctx context.Context, arg CreateProjectParams) (P
 	return i, err
 }
 
+const deleteProject = `-- name: DeleteProject :execrows
+DELETE FROM projects WHERE id = $1
+`
+
+// Borra el proyecto y, en cascada, sus miembros, categorías, ubicaciones, productos,
+// fotos y movimientos (ver los ON DELETE CASCADE de la migración 00001).
+func (q *Queries) DeleteProject(ctx context.Context, id pgtype.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteProject, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const deleteProjectMember = `-- name: DeleteProjectMember :execrows
 DELETE FROM project_members
 WHERE project_id = $1 AND user_id = $2
@@ -172,6 +186,35 @@ func (q *Queries) ListProjectMembers(ctx context.Context, projectID pgtype.UUID)
 			return nil, err
 		}
 		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listProjectPhotoKeys = `-- name: ListProjectPhotoKeys :many
+SELECT ph.storage_key
+FROM product_photos ph
+JOIN products p ON p.id = ph.product_id
+WHERE p.project_id = $1
+`
+
+// Claves de los ficheros de TODAS las fotos de un proyecto. Las pedimos ANTES de borrarlo:
+// la BD borra las filas en cascada, pero los ficheros del disco/nube hay que borrarlos desde Go.
+func (q *Queries) ListProjectPhotoKeys(ctx context.Context, projectID pgtype.UUID) ([]string, error) {
+	rows, err := q.db.Query(ctx, listProjectPhotoKeys, projectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var storage_key string
+		if err := rows.Scan(&storage_key); err != nil {
+			return nil, err
+		}
+		items = append(items, storage_key)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
