@@ -22,6 +22,26 @@ export const categoryIcons: Record<string, LucideIcon> = {
   box: Box,
 }
 
+// Para el selector de iconos al crear una categoría (con nombre para lectores de pantalla)
+export const iconChoices: { key: string; label: string }[] = [
+  { key: 'box', label: 'Caja' },
+  { key: 'wrench', label: 'Herramientas' },
+  { key: 'lightbulb', label: 'Bombilla' },
+  { key: 'star', label: 'Estrella / Navidad' },
+  { key: 'shirt', label: 'Ropa' },
+  { key: 'armchair', label: 'Muebles' },
+  { key: 'kitchen', label: 'Cocina' },
+  { key: 'book', label: 'Libros' },
+  { key: 'bike', label: 'Deporte' },
+  { key: 'document', label: 'Documentos' },
+  { key: 'plug', label: 'Electrónica' },
+  { key: 'toy', label: 'Juguetes' },
+  { key: 'cleaning', label: 'Limpieza' },
+]
+
+// Colores para elegir al crear una categoría
+export const categoryColors = ['#C98A1E', '#B4452E', '#3B6A9E', '#4F7A3A', '#7A5BA6', '#1E6B66', '#A0526E', '#64748b']
+
 export function categoryIcon(name: string | undefined): LucideIcon {
   return (name && categoryIcons[name]) || Package
 }

@@ -82,3 +82,11 @@ export type Movement = {
   user_name: string
   created_at: string
 }
+
+export type Location = {
+  id: string
+  name: string
+  description: string
+  parent_id: string | null // null = está en el primer nivel (no dentro de otra)
+  product_count: number
+}

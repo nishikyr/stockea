@@ -1,6 +1,5 @@
-import { PackageMinus } from 'lucide-react'
-import { useCallback } from 'react'
-import { Link, useLocation, useNavigate, useSearchParams } from 'react-router'
+import { PackageMinus, Plus } from 'lucide-react'
+import { Link, useSearchParams } from 'react-router'
 import { useCategories, useProducts } from '../../api/inventory'
 import { useCurrentProject } from '../../api/projects'
 import { Flash } from '../../components/Flash'
@@ -12,6 +11,7 @@ import { EmptyState, ErrorMessage, Loading } from '../../components/StatusMessag
 import { Button } from '../../components/ui/Button'
 import { filterProducts, type CategoryFilter } from '../../lib/filterProducts'
 import { plural } from '../../lib/format'
+import { useRouteFlash } from '../../lib/useRouteFlash'
 
 export function InventoryPage() {
   const { projectId, data: project } = useCurrentProject()
@@ -50,16 +50,8 @@ export function InventoryPage() {
   const hasFilters = search !== '' || category !== 'all' || lowOnly
   const canEdit = project?.role !== 'viewer'
 
-  // Mensaje que nos manda otra pantalla al volver (p. ej. "Hecho: has sacado 2 productos").
-  // Viaja en el "state" de la navegación, no en la URL. Al ocultarlo, lo borramos de ese state
-  // para que no vuelva a salir si recargas.
-  const location = useLocation()
-  const navigate = useNavigate()
-  const flash = (location.state as { flash?: string } | null)?.flash
-  const hideFlash = useCallback(
-    () => navigate({ search: location.search }, { replace: true, state: null }),
-    [navigate, location.search],
-  )
+  // Mensaje que nos manda otra pantalla al volver ("Producto añadido", "Hecho: has sacado…")
+  const { flash, tone, hide: hideFlash } = useRouteFlash()
 
   function clearFilters() {
     setParams({}, { replace: true })
@@ -67,7 +59,7 @@ export function InventoryPage() {
 
   return (
     <main className="flex flex-col gap-4">
-      {flash && <Flash message={flash} onHide={hideFlash} />}
+      {flash && <Flash message={flash} tone={tone} onHide={hideFlash} />}
 
       <div>
         <h1 className="font-display text-4xl leading-tight font-bold tracking-tight">Inventario</h1>
@@ -93,9 +85,14 @@ export function InventoryPage() {
 
       {products.data && all.length === 0 && (
         <EmptyState title="El trastero está vacío">
-          {canEdit
-            ? 'Cuando añadas el primer producto aparecerá aquí.'
-            : 'Todavía no se ha guardado nada. Cuando se añadan cosas las verás aquí.'}
+          {canEdit ? (
+            <Link to="products/new" className="mt-2 inline-flex min-h-12 items-center gap-2 rounded-2xl bg-brand px-5
+              font-bold text-white">
+              <Plus size={20} aria-hidden="true" /> Añadir el primero
+            </Link>
+          ) : (
+            'Todavía no se ha guardado nada. Cuando se añadan cosas las verás aquí.'
+          )}
         </EmptyState>
       )}
 
@@ -134,6 +131,16 @@ export function InventoryPage() {
             </EmptyState>
           )}
         </>
+      )}
+
+      {/* Botón flotante "Añadir" (solo quien puede editar). Se coloca sobre la barra de pestañas,
+          alineado con la columna central también en pantallas anchas. */}
+      {canEdit && all.length > 0 && (
+        <Link to="products/new"
+          className="fixed right-[max(1.25rem,calc(50%-14rem+1.25rem))] bottom-24 z-10 flex h-14 items-center gap-2
+            rounded-full bg-brand pr-5.5 pl-4.5 text-[17px] font-bold text-white shadow-[0_8px_20px_rgba(30,107,102,0.3)]">
+          <Plus size={22} strokeWidth={2.4} aria-hidden="true" /> Añadir
+        </Link>
       )}
     </main>
   )

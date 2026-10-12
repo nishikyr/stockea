@@ -12,6 +12,7 @@ import { PhotoStrip } from '../components/inventory/PhotoStrip'
 import { EmptyState, ErrorMessage, Loading } from '../components/StatusMessage'
 import { categoryTint } from '../lib/categoryStyle'
 import { qty } from '../lib/format'
+import { useRouteFlash } from '../lib/useRouteFlash'
 import type { MovementType } from '../types/api'
 
 // Ficha de un producto: fotos, cuántos hay, botones para moverlo y su historial.
@@ -29,6 +30,8 @@ export function ProductPage() {
   const [flash, setFlash] = useState<string | null>(null)
   // useCallback: la misma función en cada render, para que el temporizador de Flash no se reinicie
   const hideFlash = useCallback(() => setFlash(null), [])
+  // …y el que nos manda el formulario al crear un producto ("Producto añadido.")
+  const routeFlash = useRouteFlash()
 
   function handleDone(result: MovementResult, type: MovementType) {
     const left = qty(result.new_quantity, result.movement.unit)
@@ -47,13 +50,18 @@ export function ProductPage() {
 
   return (
     <main className="mx-auto flex min-h-dvh max-w-md flex-col gap-5 px-5 pt-4 pb-10">
-      <button
-        type="button"
-        onClick={goBack}
-        className="-ml-2 flex min-h-11 w-fit items-center gap-1 px-2 font-semibold text-ink"
-      >
-        <ChevronLeft size={22} aria-hidden="true" /> Volver
-      </button>
+      <div className="flex items-center justify-between">
+        <button
+          type="button"
+          onClick={goBack}
+          className="-ml-2 flex min-h-11 w-fit items-center gap-1 px-2 font-semibold text-ink"
+        >
+          <ChevronLeft size={22} aria-hidden="true" /> Volver
+        </button>
+        {canEdit && product && (
+          <Link to="edit" className="-mr-3 flex min-h-11 items-center px-3 font-semibold text-brand">Editar</Link>
+        )}
+      </div>
 
       {isPending && <Loading />}
       {error && (
@@ -128,6 +136,7 @@ export function ProductPage() {
           </section>
 
           {flash && <Flash message={flash} onHide={hideFlash} />}
+          {routeFlash.flash && <Flash message={routeFlash.flash} tone={routeFlash.tone} onHide={routeFlash.hide} />}
 
           <section className="flex flex-col gap-3">
             <h2 className="font-display text-xl font-bold">Movimientos</h2>

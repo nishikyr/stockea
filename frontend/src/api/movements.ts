@@ -1,7 +1,7 @@
-import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useInfiniteQuery, useMutation } from '@tanstack/react-query'
 import type { Movement, MovementType } from '../types/api'
 import { api } from './client'
-import { projectKeys } from './projects'
+import { useInvalidateProjects } from './invalidate'
 
 export type MovementFilters = {
   productId?: string
@@ -33,15 +33,6 @@ export type MovementResult = {
   movement: Movement
   new_quantity: number
   low_stock: boolean
-}
-
-// Un movimiento cambia MUCHAS cosas a la vez: el stock del producto, la lista del inventario,
-// el historial, los contadores de la tarjeta del proyecto… En vez de actualizar cada una a mano,
-// marcamos como "caducado" todo lo que empieza por ['projects'] y TanStack Query vuelve a pedir
-// lo que esté en pantalla. Por eso todas las claves empiezan igual.
-function useInvalidateProjects() {
-  const queryClient = useQueryClient()
-  return () => queryClient.invalidateQueries({ queryKey: projectKeys.all })
 }
 
 export type NewMovement = { type: MovementType; quantity: number; reason: string }
