@@ -2,10 +2,12 @@ package services
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 
@@ -32,10 +34,13 @@ var allowedImageTypes = map[string]string{
 type PhotoService struct {
 	q     *db.Queries
 	store storage.Storage
+	// Espacio máximo para TODAS las fotos. Es un freno de costes: la app se niega a subir más
+	// antes de llegar al límite del almacenamiento (en el plan gratis de Neon, 5 GB).
+	quotaBytes int64
 }
 
-func NewPhotoService(q *db.Queries, store storage.Storage) *PhotoService {
-	return &PhotoService{q: q, store: store}
+func NewPhotoService(q *db.Queries, store storage.Storage, quotaBytes int64) *PhotoService {
+	return &PhotoService{q: q, store: store, quotaBytes: quotaBytes}
 }
 
 func (s *PhotoService) List(ctx context.Context, projectID, productID pgtype.UUID) ([]db.ProductPhoto, error) {
@@ -66,27 +71,39 @@ func (s *PhotoService) Upload(ctx context.Context, projectID, productID pgtype.U
 		return db.ProductPhoto{}, validation("solo se admiten fotos JPG, PNG o WEBP")
 	}
 
+	// Leemos la foto entera en memoria (máx. 10 MB). Así sabemos su tamaño ANTES de guardarla:
+	// si es demasiado grande o no cabe en el espacio disponible, ni siquiera se sube.
+	data, err := io.ReadAll(&io.LimitedReader{R: br, N: MaxPhotoBytes + 1})
+	if err != nil {
+		return db.ProductPhoto{}, err
+	}
+	if len(data) > MaxPhotoBytes {
+		return db.ProductPhoto{}, validation("la foto no puede superar 10 MB")
+	}
+	used, err := s.q.TotalPhotoBytes(ctx)
+	if err != nil {
+		return db.ProductPhoto{}, err
+	}
+	if used+int64(len(data)) > s.quotaBytes {
+		return db.ProductPhoto{}, validation(fmt.Sprintf(
+			"no queda espacio para más fotos (límite: %d MB). Borra fotos que ya no hagan falta", s.quotaBytes>>20))
+	}
+
 	name := make([]byte, 16)
 	if _, err := rand.Read(name); err != nil {
 		return db.ProductPhoto{}, err
 	}
 	// La clave incluye proyecto y producto: fácil de ordenar y de borrar
 	key := uuidHex(projectID) + "/" + uuidHex(productID) + "/" + hex.EncodeToString(name) + ext
-
-	// Límite de tamaño: si el fichero pasa de 10 MB, el lector corta y damos error
-	limited := &io.LimitedReader{R: br, N: MaxPhotoBytes + 1}
-	if err := s.store.Save(ctx, key, limited); err != nil {
+	if err := s.store.Save(ctx, key, bytes.NewReader(data), int64(len(data)), contentTypeFromKey(key)); err != nil {
 		return db.ProductPhoto{}, err
-	}
-	if limited.N == 0 {
-		_ = s.store.Delete(ctx, key)
-		return db.ProductPhoto{}, validation("la foto no puede superar 10 MB")
 	}
 
 	photo, err := s.q.CreateProductPhoto(ctx, db.CreateProductPhotoParams{
 		ProductID:  productID,
 		StorageKey: key,
 		Position:   count,
+		SizeBytes:  int64(len(data)),
 	})
 	if err != nil {
 		_ = s.store.Delete(ctx, key) // no dejamos ficheros huérfanos

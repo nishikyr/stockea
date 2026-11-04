@@ -23,19 +23,25 @@ func (q *Queries) CountProductPhotos(ctx context.Context, productID pgtype.UUID)
 }
 
 const createProductPhoto = `-- name: CreateProductPhoto :one
-INSERT INTO product_photos (product_id, storage_key, position)
-VALUES ($1, $2, $3)
-RETURNING id, product_id, storage_key, position, created_at
+INSERT INTO product_photos (product_id, storage_key, position, size_bytes)
+VALUES ($1, $2, $3, $4)
+RETURNING id, product_id, storage_key, position, created_at, size_bytes
 `
 
 type CreateProductPhotoParams struct {
 	ProductID  pgtype.UUID `json:"product_id"`
 	StorageKey string      `json:"storage_key"`
 	Position   int32       `json:"position"`
+	SizeBytes  int64       `json:"size_bytes"`
 }
 
 func (q *Queries) CreateProductPhoto(ctx context.Context, arg CreateProductPhotoParams) (ProductPhoto, error) {
-	row := q.db.QueryRow(ctx, createProductPhoto, arg.ProductID, arg.StorageKey, arg.Position)
+	row := q.db.QueryRow(ctx, createProductPhoto,
+		arg.ProductID,
+		arg.StorageKey,
+		arg.Position,
+		arg.SizeBytes,
+	)
 	var i ProductPhoto
 	err := row.Scan(
 		&i.ID,
@@ -43,6 +49,7 @@ func (q *Queries) CreateProductPhoto(ctx context.Context, arg CreateProductPhoto
 		&i.StorageKey,
 		&i.Position,
 		&i.CreatedAt,
+		&i.SizeBytes,
 	)
 	return i, err
 }
@@ -57,7 +64,7 @@ func (q *Queries) DeleteProductPhoto(ctx context.Context, id pgtype.UUID) error 
 }
 
 const getProductPhoto = `-- name: GetProductPhoto :one
-SELECT ph.id, ph.product_id, ph.storage_key, ph.position, ph.created_at FROM product_photos ph
+SELECT ph.id, ph.product_id, ph.storage_key, ph.position, ph.created_at, ph.size_bytes FROM product_photos ph
 JOIN products p ON p.id = ph.product_id
 WHERE p.project_id = $1 AND ph.product_id = $2 AND ph.id = $3
 `
@@ -78,12 +85,13 @@ func (q *Queries) GetProductPhoto(ctx context.Context, arg GetProductPhotoParams
 		&i.StorageKey,
 		&i.Position,
 		&i.CreatedAt,
+		&i.SizeBytes,
 	)
 	return i, err
 }
 
 const listProductPhotos = `-- name: ListProductPhotos :many
-SELECT id, product_id, storage_key, position, created_at FROM product_photos
+SELECT id, product_id, storage_key, position, created_at, size_bytes FROM product_photos
 WHERE product_id = $1
 ORDER BY position, created_at
 `
@@ -103,6 +111,7 @@ func (q *Queries) ListProductPhotos(ctx context.Context, productID pgtype.UUID) 
 			&i.StorageKey,
 			&i.Position,
 			&i.CreatedAt,
+			&i.SizeBytes,
 		); err != nil {
 			return nil, err
 		}
@@ -112,4 +121,16 @@ func (q *Queries) ListProductPhotos(ctx context.Context, productID pgtype.UUID) 
 		return nil, err
 	}
 	return items, nil
+}
+
+const totalPhotoBytes = `-- name: TotalPhotoBytes :one
+SELECT COALESCE(SUM(size_bytes), 0)::bigint FROM product_photos
+`
+
+// Espacio ocupado por TODAS las fotos de todos los trasteros (comparten el mismo almacenamiento)
+func (q *Queries) TotalPhotoBytes(ctx context.Context) (int64, error) {
+	row := q.db.QueryRow(ctx, totalPhotoBytes)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
 }

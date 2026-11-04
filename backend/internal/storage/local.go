@@ -37,7 +37,7 @@ func (s *LocalStorage) path(key string) (string, error) {
 	return p, nil
 }
 
-func (s *LocalStorage) Save(_ context.Context, key string, r io.Reader) error {
+func (s *LocalStorage) Save(_ context.Context, key string, r io.Reader, _ int64, _ string) error {
 	p, err := s.path(key)
 	if err != nil {
 		return err

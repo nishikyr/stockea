@@ -143,6 +143,7 @@ type ProductPhoto struct {
 	StorageKey string             `json:"storage_key"`
 	Position   int32              `json:"position"`
 	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+	SizeBytes  int64              `json:"size_bytes"`
 }
 
 type Project struct {

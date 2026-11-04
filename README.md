@@ -5,7 +5,7 @@ Inventario visual de trasteros, organizado por proyectos (ej. "HomeBox Atocha - 
 ## Stack
 - **Backend:** Go + Echo, PostgreSQL (pgx), consultas tipadas con sqlc, migraciones con goose
 - **Frontend:** React + TypeScript + Vite + Tailwind, TanStack Query, React Router
-- **Fotos:** disco local (`UPLOAD_DIR`); en producción, almacenamiento de objetos (pendiente)
+- **Fotos:** disco local (`UPLOAD_DIR`) en desarrollo; en producción, un bucket compatible con S3 (Neon Object Storage) vía minio-go
 - **Producción:** una sola imagen Docker: Go sirve la API y el frontend compilado
 
 ## Estructura
@@ -25,7 +25,7 @@ stockea/
         ├── config/                  # lee y valida el .env
         ├── db/                      # generado por sqlc (modelos + consultas) — no editar
         ├── auth/                    # bcrypt + tokens de sesión
-        ├── storage/                 # dónde se guardan las fotos (hoy: disco local)
+        ├── storage/                 # dónde se guardan las fotos: disco local o bucket S3
         ├── middleware/              # sesión, admin, rol de proyecto
         ├── services/                # lógica de negocio y validaciones
         ├── handlers/                # HTTP: request → service → respuesta JSON
@@ -44,7 +44,7 @@ los convierte en el código HTTP adecuado con un JSON `{"message": "..."}`.
 - `projects` + `project_members` — cada usuario tiene rol `editor` o `viewer` por proyecto
 - `categories`, `locations` (anidables: Estantería > Caja, con `qr_code`)
 - `products` — `quantity` y `min_quantity` (alerta de stock bajo)
-- `product_photos` — solo la clave del fichero; la imagen va en `storage/` (carpeta `UPLOAD_DIR`)
+- `product_photos` — solo la clave y el tamaño (`size_bytes`) del fichero; la imagen va al almacenamiento (carpeta o bucket S3)
 - `movements` — historial de entradas/salidas/ajustes (quién, cuándo, por qué)
 
 Regla de oro: `products.quantity` solo cambia junto con un `movement`, en la misma transacción.
@@ -170,6 +170,9 @@ orden, así que dos salidas múltiples simultáneas nunca se quedan esperándose
 
 Cada producto devuelve `photo_url` (su foto de portada, o `null`), lista para usar en `<img src>`.
 
+**Freno de espacio:** antes de guardar una foto se comprueba que el total de fotos más la nueva no pase de
+`PHOTO_QUOTA_MB`. Si no cabe, la API responde 400 ("no queda espacio para más fotos") y la foto no llega a subirse.
+
 ## Producción
 En producción hay **un solo servicio**: Go sirve la API (`/api/...`) y el frontend compilado
 (`frontend/dist`, indicado con `STATIC_DIR`). Todo sale del mismo dominio: sin CORS y la cookie
@@ -185,7 +188,9 @@ de sesión funciona sin trucos. Además (`internal/web`):
 | `APP_ENV` | `production` | cookie `Secure` + HSTS |
 | `PORT` | `8080` | puerto donde escucha |
 | `STATIC_DIR` | `/app/public` | carpeta del frontend compilado (vacío = no se sirve) |
-| `UPLOAD_DIR` | `/data/uploads` | fotos en disco (hasta pasar a almacenamiento de objetos) |
+| `S3_ENDPOINT`, `S3_REGION`, `S3_BUCKET` | los del bucket | fotos en un almacenamiento S3 (Neon, R2…). Sin `S3_BUCKET` se usa `UPLOAD_DIR` |
+| `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` | **secretos** | credencial con permiso solo de lectura/escritura de fotos |
+| `PHOTO_QUOTA_MB` | `4096` | espacio máximo para todas las fotos: la app rechaza subir más antes de llegar al límite del plan |
 | `GOOSE_DBSTRING` | igual que `DATABASE_URL` | para ejecutar las migraciones |
 
 ### Probar la imagen de producción en local
@@ -206,6 +211,7 @@ docker run --rm -p 8080:8080 -e APP_ENV=development -e DATABASE_URL="postgres://
 1. ~~Backend: sesiones, permisos, inventario, movimientos, fotos~~ ✔
 2. ~~Frontend React~~ ✔
 3. ~~Preparar producción: imagen Docker, frontend servido por Go, IP real, cabeceras de seguridad~~ ✔
-4. Deploy + GitHub Actions, con las fotos en almacenamiento de objetos
-5. App instalable (PWA)
-6. Solicitudes: quien tiene "Solo ver" pide sacar o enviar cosas y el admin lo aprueba
+4. ~~Fotos en almacenamiento S3 con tope de espacio~~ ✔
+5. Deploy (Cloud Run + Neon) + GitHub Actions
+6. App instalable (PWA)
+7. Solicitudes: quien tiene "Solo ver" pide sacar o enviar cosas y el admin lo aprueba

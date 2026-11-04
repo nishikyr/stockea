@@ -35,10 +35,27 @@ func main() {
 	}
 	defer pool.Close()
 
-	// Dónde se guardan las fotos. Para usar R2/S3 en el futuro, solo cambia esta línea.
-	store, err := storage.NewLocalStorage(cfg.UploadDir)
-	if err != nil {
-		log.Fatal(err)
+	// Dónde se guardan las fotos: S3 (Neon, R2…) en producción, una carpeta en desarrollo
+	var store storage.Storage
+	if cfg.UseS3() {
+		s3, err := storage.NewS3Storage(cfg.S3)
+		if err != nil {
+			log.Fatal(err)
+		}
+		checkCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		if err := s3.Check(checkCtx); err != nil {
+			log.Fatal(err) // mejor no arrancar que arrancar sin poder guardar fotos
+		}
+		cancel()
+		log.Printf("fotos: bucket S3 %q", cfg.S3.Bucket)
+		store = s3
+	} else {
+		local, err := storage.NewLocalStorage(cfg.UploadDir)
+		if err != nil {
+			log.Fatal(err)
+		}
+		log.Printf("fotos: carpeta local %q", cfg.UploadDir)
+		store = local
 	}
 
 	// Capa de datos → services → handlers
@@ -49,7 +66,7 @@ func main() {
 	categoryService := services.NewCategoryService(queries)
 	locationService := services.NewLocationService(queries)
 	productService := services.NewProductService(pool, queries, store)
-	photoService := services.NewPhotoService(queries, store)
+	photoService := services.NewPhotoService(queries, store, cfg.PhotoQuotaMB<<20)
 	movementService := services.NewMovementService(pool, queries)
 
 	e := echo.New()

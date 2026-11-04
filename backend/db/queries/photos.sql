@@ -7,9 +7,13 @@ ORDER BY position, created_at;
 SELECT count(*)::int FROM product_photos WHERE product_id = $1;
 
 -- name: CreateProductPhoto :one
-INSERT INTO product_photos (product_id, storage_key, position)
-VALUES ($1, $2, $3)
+INSERT INTO product_photos (product_id, storage_key, position, size_bytes)
+VALUES ($1, $2, $3, $4)
 RETURNING *;
+
+-- Espacio ocupado por TODAS las fotos de todos los trasteros (comparten el mismo almacenamiento)
+-- name: TotalPhotoBytes :one
+SELECT COALESCE(SUM(size_bytes), 0)::bigint FROM product_photos;
 
 -- Comprueba a la vez que la foto es de ese producto y el producto de ese proyecto
 -- name: GetProductPhoto :one
