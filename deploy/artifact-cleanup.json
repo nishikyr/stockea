@@ -1,0 +1,12 @@
+[
+  {
+    "name": "guardar-las-3-ultimas",
+    "action": { "type": "Keep" },
+    "mostRecentVersions": { "keepCount": 3 }
+  },
+  {
+    "name": "borrar-las-demas",
+    "action": { "type": "Delete" },
+    "condition": { "olderThan": "86400s" }
+  }
+]

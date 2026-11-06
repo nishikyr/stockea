@@ -18,7 +18,7 @@ COPY frontend/ ./
 RUN npm run build
 
 # ── 2. Backend ────────────────────────────────────────────────────────────────
-FROM golang:1.24-alpine AS api
+FROM golang:1.25-alpine AS api
 WORKDIR /src
 # Igual que arriba: las dependencias se descargan en una capa aparte y se cachean
 COPY backend/go.mod backend/go.sum ./
